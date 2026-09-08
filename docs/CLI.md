@@ -4,16 +4,16 @@ SynapseCTRL's CLI is designed for both people and other programs.
 
 Human-readable output is the default. Add `--json` when another tool needs a stable machine-readable result.
 
-If installed from PyPI or as an uv tool, run `synapsectrl` directly. From a source checkout, prefix commands with `uv run`.
+If installed from PyPI or as an uv tool, run `SynapseCTRL` directly. From a source checkout, prefix commands with `uv run`.
 
 ## Core commands
 
 ```powershell
-synapsectrl status
-synapsectrl devices
-synapsectrl profiles "Naga"
-synapsectrl switch "Naga" "Siege"
-synapsectrl doctor
+SynapseCTRL status
+SynapseCTRL devices
+SynapseCTRL profiles "Naga"
+SynapseCTRL switch "Naga" "Siege"
+SynapseCTRL doctor
 ```
 
 Use IDs reported by discovery for unattended automation.
@@ -23,10 +23,10 @@ Use IDs reported by discovery for unattended automation.
 The required Synapse launch hook can be managed without locating the PowerShell installer manually:
 
 ```powershell
-synapsectrl hook install
-synapsectrl hook status
-synapsectrl hook repair
-synapsectrl hook uninstall
+SynapseCTRL hook install
+SynapseCTRL hook status
+SynapseCTRL hook repair
+SynapseCTRL hook uninstall
 ```
 
 `install` and `repair` run the packaged `Install-SynapseInspectHook.ps1` installer and may request Windows administrator elevation. Fully exit and reopen Razer Synapse after install, repair, or uninstall.
@@ -34,7 +34,7 @@ synapsectrl hook uninstall
 The hook commands also support JSON:
 
 ```powershell
-synapsectrl hook status --json
+SynapseCTRL hook status --json
 ```
 
 ## JSON mode
@@ -42,9 +42,9 @@ synapsectrl hook status --json
 Every normal command accepts `--json`:
 
 ```powershell
-synapsectrl devices --json
-synapsectrl profiles "Naga" --json
-synapsectrl switch "Naga" "Siege" --json
+SynapseCTRL devices --json
+SynapseCTRL profiles "Naga" --json
+SynapseCTRL switch "Naga" "Siege" --json
 ```
 
 Successful output is exactly one JSON object on stdout:
@@ -75,7 +75,7 @@ Do not parse human-readable output if you are building an integration.
 
 A non-Python program can simply:
 
-1. start `synapsectrl ... --json`
+1. start `SynapseCTRL ... --json`
 2. capture stdout
 3. parse the JSON object
 4. inspect the process exit code
@@ -102,13 +102,13 @@ Selectors resolve in this order:
 Example convenience selector:
 
 ```powershell
-synapsectrl profiles "Naga"
+SynapseCTRL profiles "Naga"
 ```
 
 For unattended use:
 
 ```powershell
-synapsectrl profiles "razer:5426:180:DEVICE_CONTAINER_ID"
+SynapseCTRL profiles "razer:5426:180:DEVICE_CONTAINER_ID"
 ```
 
 ## Profile selectors
@@ -118,13 +118,13 @@ Profile selectors use the same idea: profile GUID first, then human-readable nam
 Convenience:
 
 ```powershell
-synapsectrl switch "Naga" "Siege"
+SynapseCTRL switch "Naga" "Siege"
 ```
 
 Automation:
 
 ```powershell
-synapsectrl switch "DEVICE_ID" "PROFILE_GUID"
+SynapseCTRL switch "DEVICE_ID" "PROFILE_GUID"
 ```
 
 ## Verification
@@ -132,19 +132,19 @@ synapsectrl switch "DEVICE_ID" "PROFILE_GUID"
 A normal switch verifies the requested profile afterward:
 
 ```powershell
-synapsectrl switch "Naga" "Siege"
+SynapseCTRL switch "Naga" "Siege"
 ```
 
 Control the verification deadline:
 
 ```powershell
-synapsectrl switch "Naga" "Siege" --timeout 5
+SynapseCTRL switch "Naga" "Siege" --timeout 5
 ```
 
 Skip verification only when you explicitly want fire-and-forget behavior:
 
 ```powershell
-synapsectrl switch "Naga" "Siege" --no-verify
+SynapseCTRL switch "Naga" "Siege" --no-verify
 ```
 
 A timeout means SynapseCTRL sent the request but did not confirm the requested active profile before the deadline. Refresh current state before deciding to retry.
@@ -164,13 +164,13 @@ For automation, inspect both the exit code and JSON result.
 ## Diagnostics
 
 ```powershell
-synapsectrl doctor
+SynapseCTRL doctor
 ```
 
 Save the structured report:
 
 ```powershell
-synapsectrl doctor --out .\report.json
+SynapseCTRL doctor --out .\report.json
 ```
 
 See [Troubleshooting](Troubleshooting.md) for repair flow and deeper diagnostic tools.
