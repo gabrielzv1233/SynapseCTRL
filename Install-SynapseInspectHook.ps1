@@ -1,5 +1,6 @@
 param(
-    [switch]$Uninstall
+    [switch]$Uninstall,
+    [switch]$NoPause
 )
 
 $ErrorActionPreference = "Stop"
@@ -17,20 +18,37 @@ if (-not (Test-IsAdministrator)) {
     $elevatedArgs = @(
         "-NoProfile",
         "-ExecutionPolicy", "Bypass",
-        "-File", "`"$PSCommandPath`""
+        "-File", "`"$PSCommandPath`"",
+        # The parent handles the optional pause; the hidden child must never wait.
+        "-NoPause"
     )
 
     if ($Uninstall) {
         $elevatedArgs += "-Uninstall"
     }
 
-    Start-Process `
-        -FilePath "powershell.exe" `
-        -Verb RunAs `
-        -ArgumentList $elevatedArgs
-
-    exit
+    try {
+        $powerShellExe = Join-Path $env:SystemRoot "System32\WindowsPowerShell\v1.0\powershell.exe"
+        if ([Environment]::Is64BitOperatingSystem -and -not [Environment]::Is64BitProcess) {
+            $powerShellExe = Join-Path $env:SystemRoot "Sysnative\WindowsPowerShell\v1.0\powershell.exe"
+        }
+        $child = Start-Process -FilePath $powerShellExe -Verb RunAs `
+            -WindowStyle Hidden -ArgumentList $elevatedArgs -Wait -PassThru
+        $resultCode = $child.ExitCode
+        if ($resultCode -ne 0) {
+            Write-Error "Elevated SynapseCTRL installer failed (exit $resultCode). Run this script from an Administrator PowerShell window to see the detailed error." -ErrorAction Continue
+        } else {
+            Write-Host "SynapseCTRL hook operation completed. Fully exit and reopen Synapse to apply changes."
+        }
+    } catch {
+        Write-Error "Could not complete elevated installer: $_" -ErrorAction Continue
+        $resultCode = 1
+    }
+    if (-not $NoPause) { Read-Host "Press Enter to continue..." | Out-Null }
+    exit $resultCode
 }
+
+function Invoke-SynapseHook {
 
 $StableExe = Join-Path `
     $env:ProgramFiles `
@@ -57,45 +75,90 @@ $FilterKey = Join-Path `
     $IFEOBase `
     "SynapseCTRL"
 
+$debuggerCommand = "`"$ShimExe`""
+
+# Check ownership and conflicts before compiling, replacing files, or changing IFEO.
+$baseProperties = if (Test-Path -LiteralPath $IFEOBase) {
+    Get-ItemProperty -LiteralPath $IFEOBase
+} else { $null }
+$filterProperties = if (Test-Path -LiteralPath $FilterKey) {
+    Get-ItemProperty -LiteralPath $FilterKey
+} else { $null }
+if ($filterProperties -and (
+    $filterProperties.FilterFullPath -ine $StableExe -or
+    $filterProperties.Debugger -ine $debuggerCommand
+)) {
+    throw "The SynapseCTRL IFEO filter has unexpected values. No changes were made; inspect $FilterKey before repairing it."
+}
+if (-not $Uninstall) {
+    if (-not (Test-Path -LiteralPath $StableExe -PathType Leaf)) {
+        throw "Razer launcher not found: $StableExe"
+    }
+    if ($baseProperties.Debugger) {
+        throw "A non-filtered IFEO Debugger already exists for RazerAppEngine.exe. No changes were made: $($baseProperties.Debugger)"
+    }
+    if (Test-Path -LiteralPath $IFEOBase) {
+        foreach ($otherFilter in Get-ChildItem -LiteralPath $IFEOBase) {
+            if ($otherFilter.PSChildName -ieq 'SynapseCTRL') { continue }
+            $otherProperties = Get-ItemProperty -LiteralPath $otherFilter.PSPath
+            if ($otherProperties.FilterFullPath -ieq $StableExe) {
+                throw "Another IFEO filter already targets the stable Razer launcher: $($otherFilter.PSChildName). No changes were made."
+            }
+        }
+    }
+}
+
+# Every removable file is a fixed immediate child of this exact install directory.
+# Refuse redirected paths even when this script is invoked with elevation.
+$expectedInstallDir = [IO.Path]::GetFullPath((Join-Path $env:ProgramFiles 'SynapseCTRL'))
+if ([IO.Path]::GetFullPath($InstallDir) -ine $expectedInstallDir) {
+    throw "Unexpected installation directory: $InstallDir"
+}
+foreach ($ownedPath in @($InstallDir, $ShimExe, $OldShimPs1)) {
+    if (Test-Path -LiteralPath $ownedPath) {
+        if ((Get-Item -LiteralPath $ownedPath -Force).Attributes -band [IO.FileAttributes]::ReparsePoint) {
+            throw "Refusing redirected installation path: $ownedPath"
+        }
+    }
+}
+
 if ($Uninstall) {
-    if (Test-Path $FilterKey) {
-        Remove-Item `
-            $FilterKey `
-            -Recurse `
-            -Force
+    if ($filterProperties) {
+        # Preserve any unrelated values or nested filters in the same key.
+        foreach ($valueName in @('Debugger', 'FilterFullPath', 'HookVersion', 'PreviousUseFilter', 'UseFilterWasPresent')) {
+            Remove-ItemProperty -LiteralPath $FilterKey -Name $valueName -ErrorAction SilentlyContinue
+        }
+        $remainingKey = Get-Item -LiteralPath $FilterKey
+        if ($remainingKey.ValueCount -eq 0 -and $remainingKey.SubKeyCount -eq 0) {
+            Remove-Item -LiteralPath $FilterKey -Force
+        }
     }
 
     if (Test-Path $ShimExe) {
         Remove-Item `
-            $ShimExe `
+            -LiteralPath $ShimExe `
             -Force
     }
 
     if (Test-Path $OldShimPs1) {
         Remove-Item `
-            $OldShimPs1 `
+            -LiteralPath $OldShimPs1 `
             -Force
     }
 
     if (Test-Path $IFEOBase) {
         $remainingFilters = @(
             Get-ChildItem `
-                $IFEOBase `
-                -ErrorAction SilentlyContinue |
-            Where-Object {
-                $props = Get-ItemProperty `
-                    $_.PSPath `
-                    -ErrorAction SilentlyContinue
-
-                $props.FilterFullPath -or $props.Debugger
-            }
+                -LiteralPath $IFEOBase
         )
 
-        if ($remainingFilters.Count -eq 0) {
-            Remove-ItemProperty `
-                $IFEOBase `
-                -Name UseFilter `
-                -ErrorAction SilentlyContinue
+        if ($remainingFilters.Count -eq 0 -and $filterProperties -and
+            $baseProperties.UseFilter -eq 1 -and -not $baseProperties.Debugger) {
+            if ($filterProperties.UseFilterWasPresent -eq 1) {
+                Set-ItemProperty -LiteralPath $IFEOBase -Name UseFilter -Value $filterProperties.PreviousUseFilter
+            } elseif ($baseProperties.UseFilter -eq 1) {
+                Remove-ItemProperty -LiteralPath $IFEOBase -Name UseFilter -ErrorAction SilentlyContinue
+            }
         }
     }
 
@@ -103,23 +166,19 @@ if ($Uninstall) {
         (Test-Path $InstallDir) -and
         @(
             Get-ChildItem `
-                $InstallDir `
+                -LiteralPath $InstallDir `
                 -Force `
                 -ErrorAction SilentlyContinue
         ).Count -eq 0
     ) {
         Remove-Item `
-            $InstallDir `
+            -LiteralPath $InstallDir `
             -Force
     }
 
     Write-Host ""
     Write-Host "SynapseCTRL inspector hook removed."
-    exit
-}
-
-if (-not (Test-Path $StableExe)) {
-    throw "Razer launcher not found: $StableExe"
+    return
 }
 
 New-Item `
@@ -223,55 +282,7 @@ internal static class RazerInspectShim
                 return 193;
             }
 
-            List<string> forwarded = new List<string>();
-
-            for (int i = 0; i < args.Length; i++)
-            {
-                string arg = args[i] ?? String.Empty;
-
-                // IFEO normally supplies the intercepted executable
-                // as argv[0] to the debugger. Do not forward it.
-                if (
-                    i == 0 &&
-                    String.Equals(
-                        Path.GetFileName(arg),
-                        "RazerAppEngine.exe",
-                        StringComparison.OrdinalIgnoreCase
-                    ) &&
-                    Path.IsPathRooted(arg)
-                )
-                {
-                    continue;
-                }
-
-                forwarded.Add(arg);
-            }
-
-            bool hasInspector = false;
-
-            for (int i = 0; i < forwarded.Count; i++)
-            {
-                string arg = forwarded[i];
-
-                if (
-                    arg.StartsWith(
-                        "--inspect",
-                        StringComparison.OrdinalIgnoreCase
-                    )
-                )
-                {
-                    hasInspector = true;
-                    break;
-                }
-            }
-
-            if (!hasInspector)
-            {
-                forwarded.Insert(
-                    0,
-                    "--inspect=127.0.0.1:9229"
-                );
-            }
+            List<string> forwarded = BuildArguments(args);
 
             StringBuilder commandLine = new StringBuilder();
 
@@ -346,6 +357,52 @@ internal static class RazerInspectShim
             LogError(ex.ToString());
             return 195;
         }
+    }
+
+    private static List<string> BuildArguments(string[] args)
+    {
+        List<string> forwarded = new List<string>();
+        forwarded.Add("--inspect=127.0.0.1:9229");
+
+        for (int i = 0; i < args.Length; i++)
+        {
+            string arg = args[i] ?? String.Empty;
+            // IFEO supplies the intercepted executable first; never launch it
+            // again, because it is the filtered stable path and would recurse.
+            if (i == 0 && Path.IsPathRooted(arg) && String.Equals(
+                Path.GetFileName(arg), "RazerAppEngine.exe",
+                StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+
+            // Node also accepts underscores in option names. Never preserve an
+            // incoming host/port, break-on-start, or inspector-disabling flag.
+            string option = arg.Split('=')[0].Replace('_', '-');
+            if (option.StartsWith("--inspect", StringComparison.OrdinalIgnoreCase) ||
+                option.StartsWith("--no-inspect", StringComparison.OrdinalIgnoreCase) ||
+                option.StartsWith("--debug", StringComparison.OrdinalIgnoreCase) ||
+                option.StartsWith("--no-debug", StringComparison.OrdinalIgnoreCase))
+            {
+                if (arg.IndexOf('=') < 0 && i + 1 < args.Length)
+                {
+                    string next = args[i + 1] ?? String.Empty;
+                    int port;
+                    // Consume a separate --inspect-port value, or an endpoint
+                    // after --inspect. Preserve ordinary application arguments.
+                    if ((option.EndsWith("-port", StringComparison.OrdinalIgnoreCase) &&
+                         !next.StartsWith("-", StringComparison.Ordinal)) ||
+                        Int32.TryParse(next, out port) ||
+                        (next.IndexOf(':') >= 0 && !next.StartsWith("-", StringComparison.Ordinal)))
+                    {
+                        i++;
+                    }
+                }
+                continue;
+            }
+            forwarded.Add(arg);
+        }
+        return forwarded;
     }
 
     private static string FindNewestVersionedExe(string root)
@@ -532,13 +589,8 @@ internal static class RazerInspectShim
 '@
 
 $tempShim = Join-Path `
-    $env:TEMP `
-    "RazerInspectShim-$PID.exe"
-
-Remove-Item `
-    $tempShim `
-    -Force `
-    -ErrorAction SilentlyContinue
+    $InstallDir `
+    ("RazerInspectShim-" + [Guid]::NewGuid().ToString('N') + ".exe")
 
 try {
     Add-Type `
@@ -552,43 +604,26 @@ try {
     }
 
     Copy-Item `
-        $tempShim `
-        $ShimExe `
+        -LiteralPath $tempShim `
+        -Destination $ShimExe `
         -Force
 }
 finally {
     Remove-Item `
-        $tempShim `
+        -LiteralPath $tempShim `
         -Force `
         -ErrorAction SilentlyContinue
 }
 
 # Delete the old PowerShell-based shim if this is an upgrade.
 Remove-Item `
-    $OldShimPs1 `
+    -LiteralPath $OldShimPs1 `
     -Force `
     -ErrorAction SilentlyContinue
 
 New-Item `
     -Path $IFEOBase `
     -Force | Out-Null
-
-$existingTopDebugger = (
-    Get-ItemProperty `
-        $IFEOBase `
-        -Name Debugger `
-        -ErrorAction SilentlyContinue
-).Debugger
-
-if ($existingTopDebugger) {
-    throw @"
-A non-filtered IFEO Debugger is already configured for RazerAppEngine.exe:
-
-$existingTopDebugger
-
-I did not overwrite it.
-"@
-}
 
 New-ItemProperty `
     -Path $IFEOBase `
@@ -600,6 +635,15 @@ New-ItemProperty `
 New-Item `
     -Path $FilterKey `
     -Force | Out-Null
+
+if (-not $filterProperties) {
+    $useFilterWasPresent = [int]($null -ne $baseProperties -and $null -ne $baseProperties.UseFilter)
+    New-ItemProperty -LiteralPath $FilterKey -Name UseFilterWasPresent -PropertyType DWord -Value $useFilterWasPresent -Force | Out-Null
+    if ($useFilterWasPresent) {
+        New-ItemProperty -LiteralPath $FilterKey -Name PreviousUseFilter -PropertyType DWord -Value $baseProperties.UseFilter -Force | Out-Null
+    }
+}
+New-ItemProperty -LiteralPath $FilterKey -Name HookVersion -PropertyType DWord -Value 2 -Force | Out-Null
 
 New-ItemProperty `
     -Path $FilterKey `
@@ -641,4 +685,14 @@ Write-Host "  Get-Process RazerInspectShim -ErrorAction SilentlyContinue"
 Write-Host ""
 Write-Host "That command should return nothing after Synapse has started."
 Write-Host ""
-Read-Host "Press Enter to continue..."
+}
+
+try {
+    Invoke-SynapseHook
+    $resultCode = 0
+} catch {
+    Write-Error "SynapseCTRL hook operation failed: $_" -ErrorAction Continue
+    $resultCode = 1
+}
+if (-not $NoPause) { Read-Host "Press Enter to continue..." | Out-Null }
+exit $resultCode

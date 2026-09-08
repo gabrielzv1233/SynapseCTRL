@@ -1,0 +1,193 @@
+"""Read-only health checks for the Windows launch hook.
+
+Inspector capability checks belong to the client. This module reports whether
+the next ordinary Synapse launch can use the installed native bootstrap.
+"""
+
+from __future__ import annotations
+
+import ntpath
+import os
+from pathlib import Path
+import re
+import sys
+from typing import Any
+
+import psutil
+
+try:
+    import winreg
+except ImportError:  # Allows installation and offline tests on other platforms.
+    winreg = None  # type: ignore[assignment]
+
+
+_IFEO = r"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\RazerAppEngine.exe"
+_REPAIR = (
+    "From a SynapseCTRL source checkout, run powershell -NoProfile "
+    "-ExecutionPolicy Bypass -File .\\Install-SynapseInspectHook.ps1 -NoPause "
+    "(Windows requests administrator access), then fully exit and reopen Synapse."
+)
+
+
+def synapse_running() -> bool | None:
+    """Return whether RazerAppEngine is running; None means not observable."""
+    if sys.platform != "win32":
+        return None
+    uncertain = False
+    try:
+        for process in psutil.process_iter(["name"], ad_value=None):
+            try:
+                name = process.info.get("name")
+                if name is None:
+                    uncertain = True
+                elif name.casefold() == "razerappengine.exe":
+                    return True
+            except psutil.AccessDenied:
+                uncertain = True
+            except psutil.NoSuchProcess:
+                continue
+    except (psutil.Error, OSError):
+        return None
+    return None if uncertain else False
+
+
+def _registry_values(path: str) -> dict[str, Any] | None:
+    """Read the 64-bit IFEO view without requesting any write permissions."""
+    assert winreg is not None
+    try:
+        with winreg.OpenKey(
+            winreg.HKEY_LOCAL_MACHINE, path, 0,
+            winreg.KEY_READ | winreg.KEY_WOW64_64KEY,
+        ) as key:
+            return {
+                name: value
+                for name, value, _ in (
+                    winreg.EnumValue(key, index)
+                    for index in range(winreg.QueryInfoKey(key)[1])
+                )
+            }
+    except FileNotFoundError:
+        return None
+
+
+def _registry_filters() -> dict[str, dict[str, Any]]:
+    assert winreg is not None
+    try:
+        with winreg.OpenKey(
+            winreg.HKEY_LOCAL_MACHINE, _IFEO, 0,
+            winreg.KEY_READ | winreg.KEY_WOW64_64KEY,
+        ) as key:
+            names = [winreg.EnumKey(key, i) for i in range(winreg.QueryInfoKey(key)[0])]
+        return {name: _registry_values(_IFEO + "\\" + name) or {} for name in names}
+    except FileNotFoundError:
+        return {}
+
+
+def _same_path(left: Any, right: str | Path) -> bool:
+    return isinstance(left, str) and ntpath.normcase(ntpath.normpath(left)) == ntpath.normcase(
+        ntpath.normpath(str(right))
+    )
+
+
+def _newest_versioned_exe(root: Path) -> Path | None:
+    candidates = []
+    for directory in root.glob("app-*"):
+        suffix = directory.name[4:]
+        if not re.fullmatch(r"\d+\.\d+(?:\.\d+){0,2}", suffix):
+            continue
+        executable = directory / "RazerAppEngine.exe"
+        if executable.is_file():
+            # System.Version compares omitted build/revision components as -1.
+            parts = tuple(int(part) for part in suffix.split("."))
+            candidates.append((parts + (-1,) * (4 - len(parts)), executable))
+    return max(candidates, key=lambda item: item[0])[1] if candidates else None
+
+
+def inspect_bootstrap() -> dict[str, Any]:
+    """Return JSON-compatible hook health and actionable local repair advice."""
+    result: dict[str, Any] = {
+        "supported": sys.platform == "win32" and winreg is not None,
+        "synapseRunning": synapse_running(),
+        "stableLauncherExists": False,
+        "versionedLauncher": None,
+        "hookInstalled": False,
+        "hookHealthy": False,
+        "hookVersion": None,
+        "useFilter": None,
+        "filterFullPath": None,
+        "debugger": None,
+        "shimExists": False,
+        "issues": [],
+        "repair": [],
+    }
+
+    def issue(code: str, message: str, repair: str | None = None) -> None:
+        result["issues"].append({"code": code, "message": message})
+        if repair and repair not in result["repair"]:
+            result["repair"].append(repair)
+
+    if not result["supported"]:
+        issue("unsupported_platform", "Automatic Synapse launch requires Windows.")
+        return result
+
+    program_files = os.environ.get("ProgramW6432") or os.environ.get("ProgramFiles")
+    if not program_files:
+        issue("installation_path_unknown", "Windows Program Files location is unavailable.")
+        return result
+
+    root = Path(program_files) / "Razer" / "RazerAppEngine"
+    stable = root / "RazerAppEngine.exe"
+    shim = Path(program_files) / "SynapseCTRL" / "RazerInspectShim.exe"
+    try:
+        result["stableLauncherExists"] = stable.is_file()
+        result["shimExists"] = shim.is_file()
+        versioned = _newest_versioned_exe(root)
+        result["versionedLauncher"] = str(versioned) if versioned else None
+    except OSError as exc:
+        issue("installation_unreadable", f"Cannot inspect the Synapse installation: {exc}")
+        return result
+    if not result["stableLauncherExists"] or not result["versionedLauncher"]:
+        issue("synapse_not_installed", "The stable launcher or a numeric app-* installation is missing.",
+              "Install or repair Razer Synapse 4, then install the SynapseCTRL launch hook.")
+
+    try:
+        base = _registry_values(_IFEO) or {}
+        filters = _registry_filters()
+    except OSError as exc:
+        issue("hook_unreadable", f"Cannot read the Windows launch hook: {exc}",
+              "Check read access to the RazerAppEngine.exe Image File Execution Options registry key.")
+        return result
+    own = next((value for name, value in filters.items() if name.casefold() == "synapsectrl"), None)
+    result["useFilter"] = base.get("UseFilter")
+    if base.get("Debugger"):
+        issue("conflicting_debugger", "A non-filtered debugger is configured for RazerAppEngine.exe.",
+              "Resolve the existing non-filtered debugger before installing the SynapseCTRL hook.")
+    for name, values in filters.items():
+        if name.casefold() != "synapsectrl" and _same_path(values.get("FilterFullPath"), stable):
+            issue("conflicting_filter", f"Another launch filter targets Synapse: {name}.",
+                  "Resolve the competing launch filter before repairing the SynapseCTRL hook.")
+    if own is None:
+        issue("hook_missing", "The automatic inspector launch hook is not installed.", _REPAIR)
+    else:
+        result.update({
+            "hookInstalled": True,
+            "hookVersion": own.get("HookVersion"),
+            "filterFullPath": own.get("FilterFullPath"),
+            "debugger": own.get("Debugger"),
+        })
+        if base.get("UseFilter") != 1:
+            issue("hook_disabled", "Windows filtered launch hooks are disabled.", _REPAIR)
+        if not _same_path(own.get("FilterFullPath"), stable):
+            issue("hook_path_mismatch", "The hook does not target the stable Synapse launcher.",
+                  "Inspect the modified SynapseCTRL IFEO filter before repairing it; the installer preserves unexpected values.")
+        debugger = own.get("Debugger")
+        # Exact executable-only command: no arguments, shell, or unquoted spaces.
+        if not isinstance(debugger, str) or debugger.casefold() != f'"{shim}"'.casefold():
+            issue("hook_debugger_mismatch", "The hook debugger is not the expected quoted native shim.",
+                  "Inspect the modified SynapseCTRL IFEO filter before repairing it; the installer preserves unexpected values.")
+        if not result["shimExists"]:
+            issue("shim_missing", "The registered native launch shim is missing.", _REPAIR)
+    result["hookHealthy"] = not result["issues"]
+    if result["hookHealthy"] and result["synapseRunning"] is False:
+        result["repair"].append("Open Razer Synapse normally; the installed hook enables the inspector automatically.")
+    return result
