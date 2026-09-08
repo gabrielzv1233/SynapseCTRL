@@ -16,27 +16,27 @@ The source project is developed, dependency-managed, and built with [**uv**](htt
 
 ## Install
 
-SynapseCTRL is published on **PyPI**. Installing it exposes `synapsectrl` as a terminal command, so normal usage does not require cloning the repository or running the project through Python manually.
+SynapseCTRL is published on **PyPI**. Installing it exposes the **SynapseCTRL CLI** as a terminal command, so normal usage does not require cloning the repository or running the project through Python manually.
 
 For the CLI, an isolated [uv tool](https://docs.astral.sh/uv/guides/tools/) install is recommended:
 
 ```powershell
 uv tool install synapsectrl
-synapsectrl hook install
+SynapseCTRL hook install
 ```
 
 Standard pip installation also works:
 
 ```powershell
 python -m pip install synapsectrl
-synapsectrl hook install
+SynapseCTRL hook install
 ```
 
 After either install, commands are available directly from the terminal:
 
 ```powershell
-synapsectrl --version
-synapsectrl devices
+SynapseCTRL --version
+SynapseCTRL devices
 ```
 
 Windows will request administrator elevation for the hook installer. Fully exit and reopen Razer Synapse afterward.
@@ -50,15 +50,15 @@ uv add synapsectrl
 ## What it can do
 
 ```powershell
-synapsectrl devices
-synapsectrl profiles "Naga"
-synapsectrl switch "Naga" "Siege"
+SynapseCTRL devices
+SynapseCTRL profiles "Naga"
+SynapseCTRL switch "Naga" "Siege"
 ```
 
 For other programs, every command also supports machine-readable JSON:
 
 ```powershell
-synapsectrl devices --json
+SynapseCTRL devices --json
 ```
 
 Python applications can use `SynapseClient` directly instead of spawning the CLI.
