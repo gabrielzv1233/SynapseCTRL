@@ -4,13 +4,13 @@ Use this page as the map for SynapseCTRL documentation.
 
 ## Start here
 
-- [Getting Started](Getting-Started.md) — required hook install, first checks, first device/profile listing, and first switch
+- [Getting Started](Getting-Started.md) — install from PyPI/source, required hook setup, first checks, first device/profile listing, and first switch
 - [Setup & Advanced Options](Setup.md) — how the hook works, update behavior, alternate inspector ports, and uninstall details
 - [Troubleshooting](Troubleshooting.md) — health checks, repair guidance, and diagnostic tooling
 
 ## Using SynapseCTRL
 
-- [CLI & JSON](CLI.md) — terminal use, machine-readable output, scripting, and exit codes
+- [CLI & JSON](CLI.md) — terminal use, machine-readable output, hook management, scripting, and exit codes
 - [Python SDK](Python-SDK.md) — `SynapseClient`, device/profile discovery, switching, and structured errors
 - [API reference](API.md) — complete model and behavior reference
 
@@ -18,12 +18,14 @@ Use this page as the map for SynapseCTRL documentation.
 
 - [How it Works](Architecture.md) — Electron inspector, renderer discovery, profile state, switch path, and verification
 - [Development](Development.md) — tests, live acceptance checks, packaging, and compatibility work
+- [Publishing](Publishing.md) — manual PyPI release workflow and Trusted Publishing
 - [Attribution](Attribution.md) — how downstream projects should credit SynapseCTRL
 
 ## What interface should I use?
 
 | Goal | Recommended interface |
 | --- | --- |
+| Install the CLI | `uv tool install synapsectrl` or `pip install synapsectrl` |
 | Try SynapseCTRL manually | CLI |
 | Stream Deck / PowerShell / Node / C# utility | CLI with `--json` |
 | Python application | `SynapseClient` directly |
