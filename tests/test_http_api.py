@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 import json
 import unittest
 
@@ -32,24 +33,45 @@ STATUS = Status(
 
 
 class FakeRequest:
-    def __init__(self, *, path_params=None, body=b""):
+    def __init__(self, *, path_params=None, body=b"", disconnected=False):
         self.path_params = path_params or {}
         self._body = body
+        self.disconnected = disconnected
 
     async def body(self):
         return self._body
+
+    async def is_disconnected(self):
+        return self.disconnected
 
 
 class FakeService:
     def __init__(self):
         self.switch_calls = []
         self.error = None
+        self.subscribers = []
 
     def start(self):
         pass
 
     def close(self):
         pass
+
+    def subscribe(self, callback):
+        self.subscribers.append(callback)
+
+        def unsubscribe():
+            try:
+                self.subscribers.remove(callback)
+            except ValueError:
+                pass
+
+        return unsubscribe
+
+    def emit(self, event, data):
+        payload = {"event": event, "data": data}
+        for callback in tuple(self.subscribers):
+            callback(payload)
 
     def state(self):
         return {
@@ -102,6 +124,12 @@ def payload(response):
     return json.loads(response.body.decode("utf-8"))
 
 
+def sse_payload(chunk: bytes):
+    text = chunk.decode("utf-8")
+    data_line = next(line for line in text.splitlines() if line.startswith("data: "))
+    return json.loads(data_line.removeprefix("data: "))
+
+
 class HttpApiTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.service = FakeService()
@@ -114,6 +142,7 @@ class HttpApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(data["apiVersion"], "1")
         self.assertEqual(data["data"]["name"], "SynapseCTRL")
         self.assertEqual(data["data"]["transport"], "http")
+        self.assertEqual(data["data"]["endpoints"]["events"], "/v1/events")
 
     async def test_devices_and_profiles_use_public_service_methods(self):
         devices = await self.api.devices(FakeRequest())
@@ -171,10 +200,61 @@ class HttpApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(response.status_code, 200)
         self.assertTrue(payload(response)["data"]["synapseAvailable"])
 
+    async def test_events_start_with_snapshot_and_forward_service_events(self):
+        response = await self.api.events(FakeRequest())
+        self.assertEqual(response.media_type, "text/event-stream")
+        iterator = response.body_iterator.__aiter__()
+        try:
+            snapshot = await asyncio.wait_for(anext(iterator), timeout=1)
+            self.assertIn(b"event: service.snapshot", snapshot)
+            snapshot_data = sse_payload(snapshot)
+            self.assertEqual(snapshot_data["apiVersion"], "1")
+            self.assertEqual(snapshot_data["event"], "service.snapshot")
+            self.assertTrue(snapshot_data["data"]["synapseAvailable"])
+            self.assertEqual(len(self.service.subscribers), 1)
+
+            self.service.emit(
+                "profile.changed",
+                {
+                    "deviceId": DEVICE.id,
+                    "previousProfileId": "old-profile",
+                    "profileId": PROFILE.id,
+                },
+            )
+            changed = await asyncio.wait_for(anext(iterator), timeout=1)
+            changed_data = sse_payload(changed)
+            self.assertEqual(changed_data["event"], "profile.changed")
+            self.assertEqual(changed_data["data"]["profileId"], PROFILE.id)
+        finally:
+            await iterator.aclose()
+        self.assertEqual(self.service.subscribers, [])
+
+    async def test_events_send_keep_alive_comments(self):
+        api = HttpApi(self.service, event_heartbeat=0.01)
+        response = await api.events(FakeRequest())
+        iterator = response.body_iterator.__aiter__()
+        try:
+            await asyncio.wait_for(anext(iterator), timeout=1)
+            heartbeat = await asyncio.wait_for(anext(iterator), timeout=1)
+            self.assertEqual(heartbeat, b": keep-alive\n\n")
+        finally:
+            await iterator.aclose()
+
+    async def test_events_stop_cleanly_when_client_is_disconnected(self):
+        request = FakeRequest(disconnected=True)
+        response = await self.api.events(request)
+        iterator = response.body_iterator.__aiter__()
+        snapshot = await asyncio.wait_for(anext(iterator), timeout=1)
+        self.assertIn(b"service.snapshot", snapshot)
+        with self.assertRaises(StopAsyncIteration):
+            await asyncio.wait_for(anext(iterator), timeout=1)
+        self.assertEqual(self.service.subscribers, [])
+
     def test_create_app_exposes_expected_routes_and_service(self):
         app = create_app(self.service)
         paths = {route.path for route in app.routes}
         self.assertIn("/v1/status", paths)
+        self.assertIn("/v1/events", paths)
         self.assertIn("/v1/devices", paths)
         self.assertIn("/v1/devices/{device}/profiles/{profile}/activate", paths)
         self.assertIs(app.state.synapse_service, self.service)
