@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from contextlib import asynccontextmanager
 import json
 import logging
@@ -11,7 +12,7 @@ from typing import Any
 from starlette.applications import Starlette
 from starlette.concurrency import run_in_threadpool
 from starlette.requests import Request
-from starlette.responses import JSONResponse
+from starlette.responses import JSONResponse, StreamingResponse
 from starlette.routing import Route
 
 from . import __version__
@@ -20,6 +21,8 @@ from .service import SynapseService
 
 
 HTTP_API_VERSION = "1"
+SSE_HEARTBEAT_SECONDS = 15.0
+SSE_QUEUE_SIZE = 128
 _LOG = logging.getLogger("synapsectrl.http")
 
 _ERROR_STATUS = {
@@ -70,6 +73,17 @@ def _positive_seconds(value: Any, name: str, default: float) -> float:
     return result
 
 
+def _sse_event(event: str, data: Any) -> bytes:
+    """Encode one versioned Server-Sent Event frame."""
+    payload = json.dumps(
+        {"apiVersion": HTTP_API_VERSION, "event": event, "data": data},
+        ensure_ascii=False,
+        allow_nan=False,
+        separators=(",", ":"),
+    )
+    return f"event: {event}\ndata: {payload}\n\n".encode("utf-8")
+
+
 async def _unexpected_error(request: Request, error: Exception) -> JSONResponse:
     _LOG.exception("Unhandled SynapseCTRL HTTP error", exc_info=error)
     payload = {
@@ -86,8 +100,22 @@ async def _unexpected_error(request: Request, error: Exception) -> JSONResponse:
 class HttpApi:
     """HTTP endpoint implementation separated from server/process lifecycle."""
 
-    def __init__(self, service: SynapseService) -> None:
+    def __init__(
+        self,
+        service: SynapseService,
+        *,
+        event_heartbeat: float = SSE_HEARTBEAT_SECONDS,
+        event_queue_size: int = SSE_QUEUE_SIZE,
+    ) -> None:
         self.service = service
+        self.event_heartbeat = _positive_seconds(
+            event_heartbeat,
+            "event heartbeat",
+            SSE_HEARTBEAT_SECONDS,
+        )
+        if isinstance(event_queue_size, bool) or not isinstance(event_queue_size, int) or event_queue_size <= 0:
+            raise SynapseError("invalid_argument", "event queue size must be a positive integer.")
+        self.event_queue_size = event_queue_size
 
     async def _run(self, function, *args, **kwargs) -> JSONResponse:
         try:
@@ -109,6 +137,7 @@ class HttpApi:
                         "state": "/v1/state",
                         "devices": "/v1/devices",
                         "refresh": "/v1/refresh",
+                        "events": "/v1/events",
                     },
                 }
             )
@@ -173,6 +202,70 @@ class HttpApi:
         except SynapseError as error:
             return JSONResponse(_error_envelope(error), status_code=_status_for_error(error))
 
+    async def events(self, request: Request) -> StreamingResponse:
+        """Stream persistent service events as text/event-stream."""
+
+        async def stream():
+            loop = asyncio.get_running_loop()
+            queue: asyncio.Queue[dict[str, Any]] = asyncio.Queue(maxsize=self.event_queue_size)
+            accepting = True
+
+            def enqueue(payload: dict[str, Any]) -> None:
+                nonlocal accepting
+                if not accepting:
+                    return
+                if queue.full():
+                    try:
+                        queue.get_nowait()
+                    except asyncio.QueueEmpty:
+                        pass
+                try:
+                    queue.put_nowait(payload)
+                except asyncio.QueueFull:
+                    pass
+
+            def on_service_event(payload: dict[str, Any]) -> None:
+                if not accepting:
+                    return
+                try:
+                    loop.call_soon_threadsafe(enqueue, payload)
+                except RuntimeError:
+                    # The request loop is already gone.
+                    pass
+
+            unsubscribe = self.service.subscribe(on_service_event)
+            try:
+                yield _sse_event("service.snapshot", self.service.state())
+                while True:
+                    if await request.is_disconnected():
+                        return
+                    try:
+                        payload = await asyncio.wait_for(
+                            queue.get(),
+                            timeout=self.event_heartbeat,
+                        )
+                    except TimeoutError:
+                        yield b": keep-alive\n\n"
+                        continue
+
+                    event = payload.get("event")
+                    data = payload.get("data")
+                    if not isinstance(event, str) or not event:
+                        continue
+                    yield _sse_event(event, data)
+            finally:
+                accepting = False
+                unsubscribe()
+
+        return StreamingResponse(
+            stream(),
+            media_type="text/event-stream",
+            headers={
+                "Cache-Control": "no-cache",
+                "X-Accel-Buffering": "no",
+            },
+        )
+
 
 def create_app(service: SynapseService | None = None, **service_options: Any) -> Starlette:
     """Create the ASGI app. A supplied service is useful for embedding and tests."""
@@ -194,6 +287,7 @@ def create_app(service: SynapseService | None = None, **service_options: Any) ->
         Route("/v1/status", api.status, methods=["GET"]),
         Route("/v1/state", api.state, methods=["GET"]),
         Route("/v1/refresh", api.refresh, methods=["POST"]),
+        Route("/v1/events", api.events, methods=["GET"]),
         Route("/v1/devices", api.devices, methods=["GET"]),
         Route("/v1/devices/{device}/profiles", api.profiles, methods=["GET"]),
         Route("/v1/devices/{device}/active-profile", api.active_profile, methods=["GET"]),
