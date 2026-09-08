@@ -1,6 +1,6 @@
 # SynapseCTRL
 
-[![PyPI](https://img.shields.io/pypi/v/synapsectrl?label=PyPI)](https://pypi.org/project/synapsectrl/)
+[![PyPI](https://img.shields.io/pypi/v/synapsectrl?label=PyPI)](https://pypi.org/project/synapsectrl/) <!-- please update why does it still say not avalible -->
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.13%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![Windows](https://img.shields.io/badge/Windows-11%20%2F%2010-0078D4?logo=windows&logoColor=white)](https://github.com/gabrielzv1233/SynapseCTRL)
