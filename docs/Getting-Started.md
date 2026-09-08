@@ -1,6 +1,6 @@
 # Getting Started
 
-SynapseCTRL needs one Windows-side setup step before it can read or control Razer Synapse 4 profiles: **install the included Synapse inspector hook**.
+SynapseCTRL needs one Windows-side setup step before it can read or control Razer Synapse 4 profiles: **install the Synapse inspector hook**.
 
 ## Uninstall / remove the hook
 
@@ -16,6 +16,8 @@ Then fully exit Synapse from the tray and reopen it normally. See [Setup & Advan
 
 ## 1. Install SynapseCTRL
 
+SynapseCTRL is available as a package on **PyPI**. Installing the package also installs `synapsectrl` as a command you can call directly from your terminal, so you do not need to run the project through `python` or keep a source checkout around.
+
 For normal CLI use, installing SynapseCTRL as an isolated [**uv**](https://docs.astral.sh/uv/) tool is recommended:
 
 ```powershell
@@ -28,6 +30,12 @@ Standard pip installation also works:
 
 ```powershell
 python -m pip install synapsectrl
+```
+
+After either install, this should work from a normal terminal:
+
+```powershell
+synapsectrl --version
 ```
 
 SynapseCTRL currently requires Windows and Python 3.13+.
@@ -54,19 +62,15 @@ Run:
 synapsectrl hook install
 ```
 
-Windows will request administrator elevation. SynapseCTRL runs the packaged `Install-SynapseInspectHook.ps1` installer, which configures normal Razer Synapse launches so the Razer App Engine browser process starts with a localhost-only Node inspector.
+Windows will request administrator elevation. The CLI runs the hook installer bundled inside the SynapseCTRL package and configures normal Razer Synapse launches so the Razer App Engine browser process starts with a localhost-only Node inspector.
 
-If you are working directly from a source checkout, this is equivalent:
+If you are working directly from a source checkout, use:
 
 ```powershell
 uv run synapsectrl hook install
 ```
 
-The original installer can still be run manually when needed:
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\Install-SynapseInspectHook.ps1 -NoPause
-```
+The raw PowerShell installer remains in the repository for development and manual fallback, but normal users should use the `synapsectrl hook ...` commands. See [Setup & Advanced Options](Setup.md) for those lower-level details.
 
 After the installer completes:
 
@@ -74,9 +78,7 @@ After the installer completes:
 2. Launch Razer Synapse normally.
 3. Continue with the checks below.
 
-> **After Razer Synapse updates, you may need to rerun `synapsectrl hook install` if `synapsectrl doctor` reports that the automatic hook is missing or unhealthy.** The current shim automatically locates the newest `app-*` Razer App Engine directory, so a version-folder change alone normally does not require reinstalling the hook.
-
-For how the hook works and advanced options, see [Setup & Advanced Options](Setup.md).
+> **After Razer Synapse updates, you may need to run `synapsectrl hook repair` if `synapsectrl doctor` or `synapsectrl hook status` reports that the automatic hook is missing or unhealthy.** The current shim automatically locates the newest `app-*` Razer App Engine directory, so a version-folder change alone normally does not require reinstalling the hook.
 
 ## 3. Check the hook and connection
 
