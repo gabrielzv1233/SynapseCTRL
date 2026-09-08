@@ -23,9 +23,10 @@ except ImportError:  # Allows installation and offline tests on other platforms.
 
 _IFEO = r"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\RazerAppEngine.exe"
 _REPAIR = (
-    "From a SynapseCTRL source checkout, run powershell -NoProfile "
-    "-ExecutionPolicy Bypass -File .\\Install-SynapseInspectHook.ps1 -NoPause "
-    "(Windows requests administrator access), then fully exit and reopen Synapse."
+    "Run 'synapsectrl hook install' (Windows requests administrator access), then fully exit "
+    "and reopen Synapse. From a source checkout, use 'uv run synapsectrl hook install'. "
+    "Manual fallback: powershell -NoProfile -ExecutionPolicy Bypass -File "
+    ".\\Install-SynapseInspectHook.ps1 -NoPause."
 )
 
 

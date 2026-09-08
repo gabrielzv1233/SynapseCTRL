@@ -4,26 +4,47 @@ SynapseCTRL's CLI is designed for both people and other programs.
 
 Human-readable output is the default. Add `--json` when another tool needs a stable machine-readable result.
 
+If installed from PyPI or as an uv tool, run `synapsectrl` directly. From a source checkout, prefix commands with `uv run`.
+
 ## Core commands
 
 ```powershell
-uv run synapsectrl status
-uv run synapsectrl devices
-uv run synapsectrl profiles "Naga"
-uv run synapsectrl switch "Naga" "Siege"
-uv run synapsectrl doctor
+synapsectrl status
+synapsectrl devices
+synapsectrl profiles "Naga"
+synapsectrl switch "Naga" "Siege"
+synapsectrl doctor
 ```
 
 Use IDs reported by discovery for unattended automation.
+
+## Hook management
+
+The required Synapse launch hook can be managed without locating the PowerShell installer manually:
+
+```powershell
+synapsectrl hook install
+synapsectrl hook status
+synapsectrl hook repair
+synapsectrl hook uninstall
+```
+
+`install` and `repair` run the packaged `Install-SynapseInspectHook.ps1` installer and may request Windows administrator elevation. Fully exit and reopen Razer Synapse after install, repair, or uninstall.
+
+The hook commands also support JSON:
+
+```powershell
+synapsectrl hook status --json
+```
 
 ## JSON mode
 
 Every normal command accepts `--json`:
 
 ```powershell
-uv run synapsectrl devices --json
-uv run synapsectrl profiles "Naga" --json
-uv run synapsectrl switch "Naga" "Siege" --json
+synapsectrl devices --json
+synapsectrl profiles "Naga" --json
+synapsectrl switch "Naga" "Siege" --json
 ```
 
 Successful output is exactly one JSON object on stdout:
@@ -81,13 +102,13 @@ Selectors resolve in this order:
 Example convenience selector:
 
 ```powershell
-uv run synapsectrl profiles "Naga"
+synapsectrl profiles "Naga"
 ```
 
 For unattended use:
 
 ```powershell
-uv run synapsectrl profiles "razer:5426:180:DEVICE_CONTAINER_ID"
+synapsectrl profiles "razer:5426:180:DEVICE_CONTAINER_ID"
 ```
 
 ## Profile selectors
@@ -97,13 +118,13 @@ Profile selectors use the same idea: profile GUID first, then human-readable nam
 Convenience:
 
 ```powershell
-uv run synapsectrl switch "Naga" "Siege"
+synapsectrl switch "Naga" "Siege"
 ```
 
 Automation:
 
 ```powershell
-uv run synapsectrl switch "DEVICE_ID" "PROFILE_GUID"
+synapsectrl switch "DEVICE_ID" "PROFILE_GUID"
 ```
 
 ## Verification
@@ -111,19 +132,19 @@ uv run synapsectrl switch "DEVICE_ID" "PROFILE_GUID"
 A normal switch verifies the requested profile afterward:
 
 ```powershell
-uv run synapsectrl switch "Naga" "Siege"
+synapsectrl switch "Naga" "Siege"
 ```
 
 Control the verification deadline:
 
 ```powershell
-uv run synapsectrl switch "Naga" "Siege" --timeout 5
+synapsectrl switch "Naga" "Siege" --timeout 5
 ```
 
 Skip verification only when you explicitly want fire-and-forget behavior:
 
 ```powershell
-uv run synapsectrl switch "Naga" "Siege" --no-verify
+synapsectrl switch "Naga" "Siege" --no-verify
 ```
 
 A timeout means SynapseCTRL sent the request but did not confirm the requested active profile before the deadline. Refresh current state before deciding to retry.
@@ -133,7 +154,7 @@ A timeout means SynapseCTRL sent the request but did not confirm the requested a
 | Code | Meaning |
 | --- | --- |
 | `0` | success |
-| `1` | runtime failure, failed switch, or degraded/unavailable health |
+| `1` | runtime failure, failed switch, degraded/unavailable health, or unhealthy hook status |
 | `2` | bad arguments, not found, or ambiguous selector |
 | `3` | verification timeout |
 | `130` | interrupted |
@@ -143,13 +164,13 @@ For automation, inspect both the exit code and JSON result.
 ## Diagnostics
 
 ```powershell
-uv run synapsectrl doctor
+synapsectrl doctor
 ```
 
 Save the structured report:
 
 ```powershell
-uv run synapsectrl doctor --out .\report.json
+synapsectrl doctor --out .\report.json
 ```
 
 See [Troubleshooting](Troubleshooting.md) for repair flow and deeper diagnostic tools.

@@ -8,15 +8,29 @@ For the shortest setup path, use [Getting Started](Getting-Started.md).
 
 SynapseCTRL controls Synapse through the Razer App Engine's Electron browser process. The product needs a localhost-only Node inspector exposed by that process so it can discover renderers, read current software-profile state, and dispatch the same internal switch messages Synapse uses.
 
-Normal Synapse launches do not expose that inspector, so the repository includes `Install-SynapseInspectHook.ps1`.
+Normal Synapse launches do not expose that inspector, so SynapseCTRL ships the `Install-SynapseInspectHook.ps1` installer inside the Python package and source repository.
 
 ## Installing
+
+For normal installed use:
+
+```powershell
+synapsectrl hook install
+```
+
+From a source checkout:
+
+```powershell
+uv run synapsectrl hook install
+```
+
+The CLI runs the packaged PowerShell installer and requests administrator elevation because it installs a filtered Windows Image File Execution Options (IFEO) entry and a small launch shim under Program Files.
+
+The original script can still be invoked directly when debugging installer behavior:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\Install-SynapseInspectHook.ps1 -NoPause
 ```
-
-The script requests administrator elevation because it installs a filtered Windows Image File Execution Options (IFEO) entry and a small launch shim under Program Files.
 
 The hook targets the stable launcher:
 
@@ -43,30 +57,29 @@ After installing or repairing the hook:
 3. Run:
 
 ```powershell
-uv run synapsectrl doctor
+synapsectrl hook status
+synapsectrl doctor
 ```
 
 ## Synapse updates
 
 The current shim searches for the newest versioned `app-*` Razer App Engine directory, so ordinary version-folder changes should continue to work automatically.
 
-> **Razer may change its launch path or private Electron behavior in an update. If `synapsectrl doctor` reports the hook as missing/unhealthy after an update, rerun `Install-SynapseInspectHook.ps1`, then fully restart Synapse.**
+> **Razer may change its launch path or private Electron behavior in an update. If `synapsectrl doctor` or `synapsectrl hook status` reports the hook as missing/unhealthy after an update, run `synapsectrl hook repair`, then fully restart Synapse.**
 
 Do not assume that a successful hook install guarantees compatibility with every future Synapse release; `doctor` separately tests the live inspector and required capabilities.
 
-## Installer options
+## Repairing
 
-### Non-pausing install
-
-Recommended for scripts:
+The normal repair command is:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\Install-SynapseInspectHook.ps1 -NoPause
+synapsectrl hook repair
 ```
 
-Without `-NoPause`, the script may wait for Enter at the end so interactive users can read the result.
+`repair` uses the same packaged installer as `install`; the separate command makes the intent clearer for troubleshooting and automation.
 
-### Alternate inspector port
+## Alternate inspector port
 
 The Python client supports another local port through `--port` or the `SynapseClient(port=...)` constructor, but the shipped hook currently installs the normal inspector at port `9229`.
 
@@ -75,6 +88,12 @@ If you deliberately customize the hook, make sure the client and launcher agree 
 ## Uninstalling
 
 Remove the automatic launch hook with:
+
+```powershell
+synapsectrl hook uninstall
+```
+
+Manual source-script equivalent:
 
 ```powershell
 powershell -NoProfile -ExecutionPolicy Bypass -File .\Install-SynapseInspectHook.ps1 -Uninstall -NoPause
@@ -103,7 +122,7 @@ Invoke-RestMethod http://127.0.0.1:9229/json/list
 The normal product check is still:
 
 ```powershell
-uv run synapsectrl doctor
+synapsectrl doctor
 ```
 
 because it checks more than whether a TCP endpoint exists.

@@ -1,5 +1,6 @@
 # SynapseCTRL
 
+[![PyPI](https://img.shields.io/pypi/v/synapsectrl?label=PyPI)](https://pypi.org/project/synapsectrl/)
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.13%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![Windows](https://img.shields.io/badge/Windows-11%20%2F%2010-0078D4?logo=windows&logoColor=white)](https://github.com/gabrielzv1233/SynapseCTRL)
@@ -9,34 +10,58 @@ Programmatic control for **Razer Synapse 4 software profiles** on Windows.
 
 SynapseCTRL discovers connected devices, lists their software profiles, reports the active profile, and switches profiles through Synapse itself — without UI automation or fake clicks.
 
-The source project is developed, dependency-managed, and built with [**uv**](https://docs.astral.sh/uv/). It is intentionally uv-first rather than relying on a legacy `setup.py` or manually managed virtual-environment workflow, while still using standard Python packaging metadata so normal package installation remains possible.
+The source project is developed, dependency-managed, and built with [**uv**](https://docs.astral.sh/uv/). It is intentionally uv-first while still publishing as a normal Python package and command-line tool.
 
-> **Important:** SynapseCTRL requires the included Synapse inspector hook before device/profile control will work. Start with the [Getting Started guide](docs/Getting-Started.md).
+> **Important:** SynapseCTRL requires its Synapse inspector hook before device/profile control will work. Start with the [Getting Started guide](https://github.com/gabrielzv1233/SynapseCTRL/blob/main/docs/Getting-Started.md).
+
+## Install
+
+For the CLI, an isolated [uv tool](https://docs.astral.sh/uv/guides/tools/) install is recommended:
+
+```powershell
+uv tool install synapsectrl
+synapsectrl hook install
+```
+
+Standard pip installation also works:
+
+```powershell
+python -m pip install synapsectrl
+synapsectrl hook install
+```
+
+Windows will request administrator elevation for the hook installer. Fully exit and reopen Razer Synapse afterward.
+
+Python projects can add the SDK with:
+
+```powershell
+uv add synapsectrl
+```
 
 ## What it can do
 
 ```powershell
-uv run synapsectrl devices
-uv run synapsectrl profiles "Naga"
-uv run synapsectrl switch "Naga" "Siege"
+synapsectrl devices
+synapsectrl profiles "Naga"
+synapsectrl switch "Naga" "Siege"
 ```
 
 For other programs, every command also supports machine-readable JSON:
 
 ```powershell
-uv run synapsectrl devices --json
+synapsectrl devices --json
 ```
 
 Python applications can use `SynapseClient` directly instead of spawning the CLI.
 
 ## Documentation
 
-- **[Getting Started](docs/Getting-Started.md)** — install the required hook, verify SynapseCTRL works, and make your first switch
-- **[Documentation home](docs/README.md)** — find setup, CLI, SDK, architecture, troubleshooting, and developer references
-- **[CLI & JSON](docs/CLI.md)** — scripting and cross-language integrations
-- **[Python SDK](docs/Python-SDK.md)** — use SynapseCTRL directly from Python
-- **[API reference](docs/API.md)** — models, errors, selectors, and exact behavior
-- **[Troubleshooting](docs/Troubleshooting.md)** — `doctor`, update repair, and diagnostics
+- **[Getting Started](https://github.com/gabrielzv1233/SynapseCTRL/blob/main/docs/Getting-Started.md)** — install the required hook, verify SynapseCTRL works, and make your first switch
+- **[Documentation home](https://github.com/gabrielzv1233/SynapseCTRL/blob/main/docs/README.md)** — find setup, CLI, SDK, architecture, troubleshooting, and developer references
+- **[CLI & JSON](https://github.com/gabrielzv1233/SynapseCTRL/blob/main/docs/CLI.md)** — scripting and cross-language integrations
+- **[Python SDK](https://github.com/gabrielzv1233/SynapseCTRL/blob/main/docs/Python-SDK.md)** — use SynapseCTRL directly from Python
+- **[API reference](https://github.com/gabrielzv1233/SynapseCTRL/blob/main/docs/API.md)** — models, errors, selectors, and exact behavior
+- **[Troubleshooting](https://github.com/gabrielzv1233/SynapseCTRL/blob/main/docs/Troubleshooting.md)** — `doctor`, update repair, and diagnostics
 
 ## Quick Python example
 
@@ -57,7 +82,7 @@ Use stable device IDs and profile GUIDs for unattended automation. Human-readabl
 
 SynapseCTRL is licensed under the **Apache License 2.0** and ships with a `NOTICE` file so downstream distributions preserve project attribution as required by the license.
 
-When integrating SynapseCTRL, it is also appreciated if your source or documentation mentions that Razer Synapse device/profile discovery and control is handled by **SynapseCTRL**. See [Attribution](docs/Attribution.md).
+When integrating SynapseCTRL, it is also appreciated if your source or documentation mentions that Razer Synapse device/profile discovery and control is handled by **SynapseCTRL**. See [Attribution](https://github.com/gabrielzv1233/SynapseCTRL/blob/main/docs/Attribution.md).
 
 ## Project status
 

@@ -7,46 +7,66 @@ SynapseCTRL needs one Windows-side setup step before it can read or control Raze
 If you are here to remove SynapseCTRL's automatic Synapse hook:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\Install-SynapseInspectHook.ps1 -Uninstall -NoPause
+synapsectrl hook uninstall
 ```
 
 Then fully exit Synapse from the tray and reopen it normally. See [Setup & Advanced Options](Setup.md#uninstalling) for details.
 
 ---
 
-## 1. Install project dependencies
+## 1. Install SynapseCTRL
 
-SynapseCTRL is an [**uv**](https://docs.astral.sh/uv/) project. The repository is developed and built with uv, and `uv.lock` is the intended dependency lockfile for local development.
+For normal CLI use, installing SynapseCTRL as an isolated [**uv**](https://docs.astral.sh/uv/) tool is recommended:
 
-If you do not already have uv, install it using the [official uv installation instructions](https://docs.astral.sh/uv/getting-started/installation/).
+```powershell
+uv tool install synapsectrl
+```
 
-From the SynapseCTRL checkout:
+If you do not already have uv, use the [official uv installation instructions](https://docs.astral.sh/uv/getting-started/installation/).
+
+Standard pip installation also works:
+
+```powershell
+python -m pip install synapsectrl
+```
+
+SynapseCTRL currently requires Windows and Python 3.13+.
+
+### Working from a source checkout
+
+SynapseCTRL itself is an uv-first project. Contributors should use the included `pyproject.toml` and `uv.lock` rather than creating a separate legacy requirements/setup workflow:
 
 ```powershell
 uv sync
 ```
 
-That creates/synchronizes the project environment from `pyproject.toml` and `uv.lock`.
-
-For users who only want to install the Python package, standard Python packaging is also supported:
+When following the commands below from a checkout without installing the CLI globally, prefix them with `uv run`, for example:
 
 ```powershell
-python -m pip install .
+uv run synapsectrl devices
 ```
-
-The source/development workflow is uv-first; contributors should prefer `uv sync`, `uv run`, and `uv build` rather than creating a separate legacy `setup.py`/requirements-based project setup.
-
-SynapseCTRL currently requires Windows and Python 3.13+.
 
 ## 2. REQUIRED: install the Synapse inspector hook
 
 Run:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\Install-SynapseInspectHook.ps1 -NoPause
+synapsectrl hook install
 ```
 
-Windows will request administrator elevation. The installer configures normal Razer Synapse launches so the Razer App Engine browser process starts with a localhost-only Node inspector.
+Windows will request administrator elevation. SynapseCTRL runs the packaged `Install-SynapseInspectHook.ps1` installer, which configures normal Razer Synapse launches so the Razer App Engine browser process starts with a localhost-only Node inspector.
+
+If you are working directly from a source checkout, this is equivalent:
+
+```powershell
+uv run synapsectrl hook install
+```
+
+The original installer can still be run manually when needed:
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\Install-SynapseInspectHook.ps1 -NoPause
+```
 
 After the installer completes:
 
@@ -54,20 +74,28 @@ After the installer completes:
 2. Launch Razer Synapse normally.
 3. Continue with the checks below.
 
-> **After Razer Synapse updates, you may need to rerun this installer if `synapsectrl doctor` reports that the automatic hook is missing or unhealthy.** The current shim automatically locates the newest `app-*` Razer App Engine directory, so a version-folder change alone normally does not require reinstalling the hook.
+> **After Razer Synapse updates, you may need to rerun `synapsectrl hook install` if `synapsectrl doctor` reports that the automatic hook is missing or unhealthy.** The current shim automatically locates the newest `app-*` Razer App Engine directory, so a version-folder change alone normally does not require reinstalling the hook.
 
 For how the hook works and advanced options, see [Setup & Advanced Options](Setup.md).
 
-## 3. Check that SynapseCTRL can connect
+## 3. Check the hook and connection
+
+Check the installed launch hook:
 
 ```powershell
-uv run synapsectrl status
+synapsectrl hook status
+```
+
+Then check SynapseCTRL itself:
+
+```powershell
+synapsectrl status
 ```
 
 For the most useful setup check, run:
 
 ```powershell
-uv run synapsectrl doctor
+synapsectrl doctor
 ```
 
 A healthy setup should report `ready` and show a reachable inspector plus discovered device information.
@@ -75,7 +103,7 @@ A healthy setup should report `ready` and show a reachable inspector plus discov
 ## 4. List your devices
 
 ```powershell
-uv run synapsectrl devices
+synapsectrl devices
 ```
 
 Example shape:
@@ -93,7 +121,7 @@ Do not copy example IDs from documentation. Use the IDs reported by your own ins
 Human-readable names work when they are unambiguous:
 
 ```powershell
-uv run synapsectrl profiles "Naga"
+synapsectrl profiles "Naga"
 ```
 
 You will get the software profiles SynapseCTRL discovered for that device, including GUIDs and the active marker.
@@ -103,13 +131,13 @@ You will get the software profiles SynapseCTRL discovered for that device, inclu
 Try a profile that actually exists on your device:
 
 ```powershell
-uv run synapsectrl switch "Naga" "Siege"
+synapsectrl switch "Naga" "Siege"
 ```
 
 For unattended automation, prefer the stable device ID and profile GUID returned by discovery:
 
 ```powershell
-uv run synapsectrl switch "DEVICE_ID_FROM_DISCOVERY" "PROFILE_GUID"
+synapsectrl switch "DEVICE_ID_FROM_DISCOVERY" "PROFILE_GUID"
 ```
 
 By default, SynapseCTRL sends the switch through Synapse and then verifies that Synapse reports the requested profile as active.
@@ -119,9 +147,9 @@ By default, SynapseCTRL sends the switch through Synapse and then verifies that 
 Anything that needs to consume SynapseCTRL programmatically should use `--json` instead of parsing human-readable terminal output:
 
 ```powershell
-uv run synapsectrl devices --json
-uv run synapsectrl profiles "Naga" --json
-uv run synapsectrl switch "Naga" "Siege" --json
+synapsectrl devices --json
+synapsectrl profiles "Naga" --json
+synapsectrl switch "Naga" "Siege" --json
 ```
 
 Successful output is a single JSON object with `apiVersion: "1"` and `data`. Errors use the same envelope with an `error` object.
