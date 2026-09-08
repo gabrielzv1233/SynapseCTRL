@@ -9,6 +9,8 @@ Programmatic control for **Razer Synapse 4 software profiles** on Windows.
 
 SynapseCTRL discovers connected devices, lists their software profiles, reports the active profile, and switches profiles through Synapse itself — without UI automation or fake clicks.
 
+The source project is developed, dependency-managed, and built with [**uv**](https://docs.astral.sh/uv/). It is intentionally uv-first rather than relying on a legacy `setup.py` or manually managed virtual-environment workflow, while still using standard Python packaging metadata so normal package installation remains possible.
+
 > **Important:** SynapseCTRL requires the included Synapse inspector hook before device/profile control will work. Start with the [Getting Started guide](docs/Getting-Started.md).
 
 ## What it can do
