@@ -40,7 +40,7 @@ The root endpoint is therefore:
 http://127.0.0.1:8765/
 ```
 
-The process stays alive until it is stopped. It uses the same persistent `SynapseService` core as bridge mode, including state polling, reconnect behavior, and immediate refresh after verified profile switches.
+The process stays alive until it is stopped. It uses the same persistent `SynapseService` core as bridge mode, including state polling, reconnect behavior, immediate refresh after verified profile switches, and change events.
 
 ## Server options
 
@@ -84,7 +84,7 @@ The default bind address is loopback-only:
 
 That is the recommended configuration for normal use.
 
-If `--host` is set to a non-loopback address such as `0.0.0.0`, SynapseCTRL prints a warning. The current HTTP API does **not** provide authentication. Anyone who can reach that port may be able to inspect devices/profiles or switch active profiles.
+If `--host` is set to a non-loopback address such as `0.0.0.0`, SynapseCTRL prints a warning. The current HTTP API does **not** provide authentication. Anyone who can reach that port may be able to inspect devices/profiles, subscribe to state events, or switch active profiles.
 
 Only expose the server to a trusted network and protect it with the host firewall or another trusted access-control layer.
 
@@ -92,7 +92,7 @@ CORS is not enabled by default. This is intentional: arbitrary web pages should 
 
 ## Response envelope
 
-Successful responses use the same versioned shape as the CLI JSON interface:
+Successful JSON responses use the same versioned shape as the CLI JSON interface:
 
 ```json
 {
@@ -151,6 +151,53 @@ GET /v1/state
 ```
 
 Returns the most recent state held by `SynapseService` without forcing a new Synapse read.
+
+### Live events
+
+```http
+GET /v1/events
+Accept: text/event-stream
+```
+
+Opens a **Server-Sent Events (SSE)** stream backed by the same `SynapseService` event source used by stdio bridge mode.
+
+The first message is always an immediate snapshot:
+
+```text
+event: service.snapshot
+data: {"apiVersion":"1","event":"service.snapshot","data":{"state":"ready","synapseAvailable":true,"devices":[],"error":null,"updatedAtMs":123}}
+```
+
+After that, the stream forwards meaningful service events such as:
+
+- `synapse.available`
+- `synapse.unavailable`
+- `profile.changed`
+- `devices.changed`
+- `device.changed`
+
+Example profile-change frame:
+
+```text
+event: profile.changed
+data: {"apiVersion":"1","event":"profile.changed","data":{"deviceId":"DEVICE_ID","previousProfileId":"OLD_GUID","profileId":"NEW_GUID"}}
+```
+
+SynapseCTRL sends an SSE comment roughly every 15 seconds while no events are occurring:
+
+```text
+: keep-alive
+```
+
+These heartbeats help proxies and HTTP clients keep the connection open. They are not application events and should be ignored by SSE parsers.
+
+Quick test with curl:
+
+```powershell
+curl.exe -N -H "Accept: text/event-stream" "http://127.0.0.1:8765/v1/events"
+```
+
+The stream remains open until the client disconnects or the server stops. Each client receives its own bounded event queue. If a client falls far enough behind to fill that queue, older queued events are discarded in favor of newer state changes; clients should treat the stream as live state notification rather than a durable event log.
 
 ### Force a refresh
 
@@ -244,17 +291,19 @@ Both transports use the same service core:
 ```text
                  +--> NDJSON stdio bridge
 SynapseService --+
-                 +--> Starlette REST API
+                 +--> Starlette REST + SSE API
 ```
 
 Use the stdio bridge when one local application owns a SynapseCTRL child process, such as SynapseDeck.
 
-Use HTTP when multiple tools, scripts, languages, or machines on a trusted network need a conventional REST interface.
+Use HTTP when multiple tools, scripts, languages, or machines on a trusted network need a conventional REST interface or a shared event stream.
 
 The HTTP server is not required for SynapseDeck and does not need to run separately for bridge users.
 
-## Events
+## Events vs polling
 
-HTTP v1 is request/response REST. The stdio bridge already exposes unsolicited profile/device/Synapse availability events.
+Clients that only need occasional state can use ordinary REST requests such as `/v1/state` or `/v1/devices`.
 
-A future HTTP revision may expose the same events through Server-Sent Events or WebSockets. Until then, HTTP clients that need live state can poll `/v1/state` or `/v1/devices` at an appropriate interval.
+Clients that need immediate profile/device/Synapse state changes should prefer `/v1/events` and use the initial `service.snapshot` to establish current state before processing subsequent events.
+
+The SSE endpoint intentionally does not provide durable replay. If a client disconnects, reconnect and use the new `service.snapshot` as the source of truth before handling later change events.
