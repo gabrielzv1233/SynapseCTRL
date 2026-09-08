@@ -74,6 +74,19 @@ def _positive_seconds(value: Any, name: str, default: float) -> float:
     return result
 
 
+def _validate_bearer_token(token: str) -> str:
+    if (
+        not token
+        or not token.isascii()
+        or any(character.isspace() for character in token)
+    ):
+        raise SynapseError(
+            "invalid_argument",
+            "HTTP bearer token must be nonempty ASCII and contain no whitespace.",
+        )
+    return token
+
+
 def _sse_event(event: str, data: Any) -> bytes:
     """Encode one versioned Server-Sent Event frame."""
     payload = json.dumps(
@@ -109,11 +122,7 @@ class BearerAuthMiddleware:
     """
 
     def __init__(self, app, *, token: str) -> None:
-        if not token or any(character.isspace() for character in token):
-            raise SynapseError(
-                "invalid_argument",
-                "HTTP bearer token must be nonempty and contain no whitespace.",
-            )
+        token = _validate_bearer_token(token)
         self.app = app
         self.token = token
         self.expected = f"Bearer {token}"
@@ -134,7 +143,11 @@ class BearerAuthMiddleware:
                 authorization = raw_value.decode("latin-1")
                 break
 
-        if authorization is None or not secrets.compare_digest(authorization, self.expected):
+        if (
+            authorization is None
+            or not authorization.isascii()
+            or not secrets.compare_digest(authorization, self.expected)
+        ):
             await _unauthorized_response()(scope, receive, send)
             return
 
@@ -334,11 +347,8 @@ def create_app(
     **service_options: Any,
 ) -> Starlette:
     """Create the ASGI app. A supplied service is useful for embedding and tests."""
-    if token is not None and (not token or any(character.isspace() for character in token)):
-        raise SynapseError(
-            "invalid_argument",
-            "HTTP bearer token must be nonempty and contain no whitespace.",
-        )
+    if token is not None:
+        token = _validate_bearer_token(token)
 
     owned_service = service is None
     service = service or SynapseService(**service_options)
