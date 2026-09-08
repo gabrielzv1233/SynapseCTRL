@@ -4,10 +4,20 @@ version = "0.2.0"
 description = "A local Python SDK and CLI for Razer Synapse 4 software profiles"
 readme = "README.md"
 requires-python = ">=3.13"
+license = { file = "LICENSE" }
+authors = [
+    { name = "Gabriel", email = "77300296+gabrielzv1233@users.noreply.github.com" },
+]
 dependencies = [
     "psutil>=7.2.2",
     "websocket-client>=1.9.2",
 ]
+
+[project.urls]
+Homepage = "https://github.com/gabrielzv1233/SynapseCTRL"
+Documentation = "https://github.com/gabrielzv1233/SynapseCTRL/tree/main/docs"
+Repository = "https://github.com/gabrielzv1233/SynapseCTRL"
+Issues = "https://github.com/gabrielzv1233/SynapseCTRL/issues"
 
 [build-system]
 requires = ["hatchling>=1.27,<2"]
@@ -20,4 +30,18 @@ synapsectrl = "synapsectrl.cli:entrypoint"
 packages = ["src/synapsectrl"]
 
 [tool.hatch.build.targets.sdist]
-include = ["/src", "/tests", "/docs", "/examples", "/README.md", "/pyproject.toml", "/Install-SynapseInspectHook.ps1", "/synapse_ctrl.py", "/astra/*.md", "/astra/*.json", "/astra/tools"]
+include = [
+    "/src",
+    "/tests",
+    "/docs",
+    "/examples",
+    "/README.md",
+    "/LICENSE",
+    "/NOTICE",
+    "/pyproject.toml",
+    "/Install-SynapseInspectHook.ps1",
+    "/synapse_ctrl.py",
+    "/codex-stuff/*.md",
+    "/codex-stuff/*.json",
+    "/codex-stuff/tools",
+]
