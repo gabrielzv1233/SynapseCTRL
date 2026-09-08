@@ -12,8 +12,10 @@ import tempfile
 from typing import Any, Sequence
 
 from . import __version__
+from .bootstrap import inspect_bootstrap
 from .client import SynapseClient
 from .errors import SynapseError
+from .hook import run_hook_installer
 
 
 API_VERSION = "1"
@@ -93,6 +95,11 @@ def build_parser() -> argparse.ArgumentParser:
     doctor = command("doctor", "Inspect connection, device discovery, and automatic launch setup.")
     doctor.add_argument("--out", type=Path, metavar="FILE",
                         help="also save the JSON diagnostic report to FILE")
+    hook = command("hook", "Install, inspect, repair, or remove the automatic Synapse launch hook.")
+    hook.add_argument(
+        "action", choices=("install", "status", "repair", "uninstall"), metavar="ACTION",
+        help="hook action: install, status, repair, or uninstall",
+    )
     return parser
 
 
@@ -227,6 +234,35 @@ def _doctor_lines(report: dict[str, Any], path: Path | None) -> list[str]:
     return lines
 
 
+def _hook_lines(data: dict[str, Any]) -> list[str]:
+    action = data.get("action", "status")
+    bootstrap = data.get("bootstrap") or {}
+    if action == "uninstall":
+        lines = ["SynapseCTRL launch hook removed."]
+    elif action in {"install", "repair"}:
+        state = "healthy" if bootstrap.get("hookHealthy") else "installed but needs attention"
+        lines = [f"SynapseCTRL launch hook {action} completed: {state}."]
+    else:
+        state = "healthy" if bootstrap.get("hookHealthy") else "needs repair" if bootstrap.get("hookInstalled") else "not installed"
+        lines = [f"SynapseCTRL launch hook: {state}."]
+
+    if bootstrap.get("versionedLauncher"):
+        lines.append(f"  App Engine: {bootstrap['versionedLauncher']}")
+    for issue in bootstrap.get("issues") or []:
+        message = issue.get("message", "") if isinstance(issue, dict) else str(issue)
+        if message:
+            lines.append(f"  - {message}")
+    stdout = data.get("stdout")
+    stderr = data.get("stderr")
+    if stdout:
+        lines.extend(["", "Installer output:", *stdout.splitlines()])
+    if stderr:
+        lines.extend(["", "Installer errors:", *stderr.splitlines()])
+    if action in {"install", "repair", "uninstall"}:
+        lines.extend(["", "Fully exit and reopen Razer Synapse to apply the launch change."])
+    return lines
+
+
 def _error(error: dict[str, Any], json_output: bool) -> None:
     if json_output:
         print(_json({"apiVersion": API_VERSION, "error": error}))
@@ -244,6 +280,19 @@ def main(argv: Sequence[str] | None = None) -> int:
     try:
         args = build_parser().parse_args(arguments)
         json_output = args.json
+        if args.command == "hook":
+            if args.action == "status":
+                bootstrap = inspect_bootstrap()
+                data = {"action": "status", "bootstrap": bootstrap}
+                exit_code = 0 if bootstrap.get("hookHealthy") else 1
+            else:
+                data = run_hook_installer(args.action)
+                bootstrap = data.get("bootstrap") or {}
+                exit_code = 0 if args.action == "uninstall" or bootstrap.get("hookHealthy") else 1
+            lines = _hook_lines(data)
+            print(_json(_envelope(data)) if json_output else "\n".join(lines))
+            return exit_code
+
         with SynapseClient(port=args.port, timeout=args.connect_timeout) as client:
             if args.command == "status":
                 data = client.status().to_dict()
