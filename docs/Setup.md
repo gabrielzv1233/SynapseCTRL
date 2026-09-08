@@ -15,13 +15,13 @@ Normal Synapse launches do not expose that inspector, so SynapseCTRL ships the `
 For normal installed use:
 
 ```powershell
-synapsectrl hook install
+SynapseCTRL hook install
 ```
 
 From a source checkout:
 
 ```powershell
-uv run synapsectrl hook install
+uv run SynapseCTRL hook install
 ```
 
 The CLI runs the packaged PowerShell installer and requests administrator elevation because it installs a filtered Windows Image File Execution Options (IFEO) entry and a small launch shim under Program Files.
@@ -57,15 +57,15 @@ After installing or repairing the hook:
 3. Run:
 
 ```powershell
-synapsectrl hook status
-synapsectrl doctor
+SynapseCTRL hook status
+SynapseCTRL doctor
 ```
 
 ## Synapse updates
 
 The current shim searches for the newest versioned `app-*` Razer App Engine directory, so ordinary version-folder changes should continue to work automatically.
 
-> **Razer may change its launch path or private Electron behavior in an update. If `synapsectrl doctor` or `synapsectrl hook status` reports the hook as missing/unhealthy after an update, run `synapsectrl hook repair`, then fully restart Synapse.**
+> **Razer may change its launch path or private Electron behavior in an update. If `SynapseCTRL doctor` or `SynapseCTRL hook status` reports the hook as missing/unhealthy after an update, run `SynapseCTRL hook repair`, then fully restart Synapse.**
 
 Do not assume that a successful hook install guarantees compatibility with every future Synapse release; `doctor` separately tests the live inspector and required capabilities.
 
@@ -74,7 +74,7 @@ Do not assume that a successful hook install guarantees compatibility with every
 The normal repair command is:
 
 ```powershell
-synapsectrl hook repair
+SynapseCTRL hook repair
 ```
 
 `repair` uses the same packaged installer as `install`; the separate command makes the intent clearer for troubleshooting and automation.
@@ -90,7 +90,7 @@ If you deliberately customize the hook, make sure the client and launcher agree 
 Remove the automatic launch hook with:
 
 ```powershell
-synapsectrl hook uninstall
+SynapseCTRL hook uninstall
 ```
 
 Manual source-script equivalent:
@@ -122,7 +122,7 @@ Invoke-RestMethod http://127.0.0.1:9229/json/list
 The normal product check is still:
 
 ```powershell
-synapsectrl doctor
+SynapseCTRL doctor
 ```
 
 because it checks more than whether a TCP endpoint exists.
