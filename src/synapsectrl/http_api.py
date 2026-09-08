@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 import json
+import math
 from typing import Any
 
 from starlette.applications import Starlette
@@ -62,8 +63,8 @@ def _positive_seconds(value: Any, name: str, default: float) -> float:
         result = float(value)
     except (TypeError, ValueError) as exc:
         raise SynapseError("invalid_argument", f"{name} must be a positive number of seconds.") from exc
-    if result <= 0:
-        raise SynapseError("invalid_argument", f"{name} must be greater than zero.")
+    if not math.isfinite(result) or result <= 0:
+        raise SynapseError("invalid_argument", f"{name} must be a finite number greater than zero.")
     return result
 
 
@@ -92,6 +93,7 @@ class HttpApi:
                         "status": "/v1/status",
                         "state": "/v1/state",
                         "devices": "/v1/devices",
+                        "refresh": "/v1/refresh",
                     },
                 }
             )
