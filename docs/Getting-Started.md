@@ -16,17 +16,25 @@ Then fully exit Synapse from the tray and reopen it normally. See [Setup & Advan
 
 ## 1. Install project dependencies
 
+SynapseCTRL is an [**uv**](https://docs.astral.sh/uv/) project. The repository is developed and built with uv, and `uv.lock` is the intended dependency lockfile for local development.
+
+If you do not already have uv, install it using the [official uv installation instructions](https://docs.astral.sh/uv/getting-started/installation/).
+
 From the SynapseCTRL checkout:
 
 ```powershell
 uv sync
 ```
 
-Or install with normal Python packaging:
+That creates/synchronizes the project environment from `pyproject.toml` and `uv.lock`.
+
+For users who only want to install the Python package, standard Python packaging is also supported:
 
 ```powershell
 python -m pip install .
 ```
+
+The source/development workflow is uv-first; contributors should prefer `uv sync`, `uv run`, and `uv build` rather than creating a separate legacy `setup.py`/requirements-based project setup.
 
 SynapseCTRL currently requires Windows and Python 3.13+.
 
