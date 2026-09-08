@@ -1,0 +1,72 @@
+{
+  "status": "proven end-to-end on the observed Synapse installation",
+  "observedAppEngine": {
+    "version": "4.0.699",
+    "electron": "30.2.0",
+    "chrome": "124.0.6367.243",
+    "node": "20.15.0"
+  },
+  "inspector": {
+    "launchArgument": "--inspect=127.0.0.1:9229",
+    "targetType": "node",
+    "targetTitle": "electron/js2c/browser_init",
+    "processType": "browser",
+    "plainRequire": "undefined",
+    "electronImport": "process.mainModule.require(\"electron\")",
+    "processGetBuiltinModule": "unavailable on observed build"
+  },
+  "observedRendererCounts": {
+    "browserWindows": 7,
+    "webContents": 8
+  },
+  "importantRenderers": {
+    "systray": "systray-left",
+    "middlewarePattern": "usb_<vendorId>_<productId>_<containerId>_mw",
+    "observedMiddleware": "usb_5426_180_{D37A42A5-5C38-5315-B3F0-EA3604C652EF}_mw"
+  },
+  "browserStorage": {
+    "observedKeys": [
+      "connectedDeviceInfo",
+      "synapse_180",
+      "synapse_180_profiles_stack",
+      "synapse_wdl"
+    ],
+    "note": "Browser localStorage keys are NOT the same as the container-qualified mapping-engine native key. The native logs showed synapse_180_{containerId}, while browser localStorage used synapse_180."
+  },
+  "profileSwitchProtocol": {
+    "channel": "device middleware BroadcastChannel",
+    "messages": [
+      {
+        "type": "ON_SWITCH_PROFILE",
+        "payload": {
+          "newActiveProfileGUID": "<profile-guid>",
+          "deviceContainerId": "<container-id>"
+        }
+      },
+      {
+        "msgName": "crossPageRequest",
+        "msgData": {
+          "action": "switchProfileBySystray",
+          "selectedProfileGuid": "<profile-guid>",
+          "deviceContainerId": "<container-id>"
+        }
+      }
+    ],
+    "preferredSenderRenderer": "systray-left",
+    "verified": true
+  },
+  "observedDevice": {
+    "name": "Razer Naga V2 Hyperspeed",
+    "vendorId": 5426,
+    "productId": 180,
+    "containerId": "{D37A42A5-5C38-5315-B3F0-EA3604C652EF}"
+  },
+  "observedProfiles": [
+    {"name": "Fortnite", "guid": "ed7bdfb2-8fd1-4ed5-862a-4999f3c2d31a"},
+    {"name": "Wyatt", "guid": "57915002-f5e2-4e47-bfb4-ea3cd2ee7a49"},
+    {"name": "Seige", "guid": "ec860d8c-8582-4606-b5ef-1bacff85481b"},
+    {"name": "Satisfactory", "guid": "11f5937c-f1af-4a0f-8a02-8d801c1319bc"},
+    {"name": "GABRIELSNEWPC-Default", "guid": "7ef5597f-bfda-476c-998c-bd9126450aa1"},
+    {"name": "GABRIELSNEWPC-Default (1)", "guid": "f577fd9f-8da3-4df0-b9b0-7bb58dcc45d3"}
+  ]
+}
