@@ -83,11 +83,13 @@ or:
 uv tool install synapsectrl
 ```
 
-The installed console command is:
+The installed console command is shown as:
 
 ```powershell
-synapsectrl
+SynapseCTRL
 ```
+
+The underlying Python package/import name remains lowercase (`synapsectrl`), as required by normal Python package conventions.
 
 ## Do not reuse versions
 
