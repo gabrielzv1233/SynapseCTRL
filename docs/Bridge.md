@@ -41,7 +41,7 @@ host application
     v
 SynapseCTRL bridge
     |
-    | persistent SynapseClient
+    | persistent SynapseService / SynapseClient
     v
 Razer Synapse 4
 ```
@@ -87,7 +87,7 @@ Example response:
   "id": 1,
   "result": {
     "protocolVersion": "1",
-    "synapseCtrlVersion": "0.2.1",
+    "synapseCtrlVersion": "0.3.0",
     "transport": "stdio",
     "service": {
       "state": "ready",
@@ -280,6 +280,18 @@ For example, SynapseDeck is expected to start a bridge when its Stream Deck plug
 
 Users should not need to manually keep a separate bridge terminal open.
 
-## Future HTTP transport
+## Bridge vs HTTP
 
-The persistent service core is transport-independent. A future `SynapseCTRL serve` command can expose the same service state and operations through an optional Starlette/Uvicorn HTTP API without duplicating the Synapse discovery, polling, reconnect, or switching logic.
+The persistent service core is transport-independent:
+
+```text
+                 +--> SynapseCTRL bridge --stdio
+SynapseService --+
+                 +--> SynapseCTRL serve
+```
+
+Use the bridge when one local application owns SynapseCTRL for its lifetime and wants efficient event-driven communication without opening a network port.
+
+Use the optional HTTP API when conventional REST clients are a better fit. HTTP support is installed with `SynapseCTRL[http]` and documented in [HTTP / REST API](HTTP.md).
+
+SynapseDeck should use the stdio bridge, so SynapseDeck users do not need the HTTP extra or a separately managed HTTP server.

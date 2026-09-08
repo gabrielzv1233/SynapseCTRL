@@ -19,8 +19,8 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
 
-      - name: Sync project
-        run: uv sync --locked
+      - name: Sync project with HTTP extra
+        run: uv sync --locked --extra http
 
       - name: Run unit tests
         run: uv run python -m unittest discover -s tests -v
@@ -33,7 +33,10 @@ jobs:
         run: powershell -NoProfile -ExecutionPolicy Bypass -File tests/test_installer.ps1
 
       - name: Check CLI entry point
-        run: uv run synapsectrl --version
+        run: |
+          uv run synapsectrl --version
+          uv run synapsectrl bridge --help
+          uv run synapsectrl serve --help
 
   build:
     name: Build distributions
@@ -55,18 +58,28 @@ jobs:
       - name: Build wheel and source distribution
         run: uv build
 
-      - name: Smoke test wheel
+      - name: Smoke test base wheel
         shell: bash
         run: |
-          uv run --isolated --no-project --with dist/*.whl python -c "import synapsectrl; print(synapsectrl.__version__)"
-          uv run --isolated --no-project --with dist/*.whl synapsectrl --version
-          uv run --isolated --no-project --with dist/*.whl python -c "from importlib.resources import files; assert files('synapsectrl').joinpath('Install-SynapseInspectHook.ps1').is_file()"
+          WHEEL=$(ls dist/*.whl)
+          uv run --isolated --no-project --with "$WHEEL" python -c "import synapsectrl; print(synapsectrl.__version__)"
+          uv run --isolated --no-project --with "$WHEEL" synapsectrl --version
+          uv run --isolated --no-project --with "$WHEEL" synapsectrl bridge --help
+          uv run --isolated --no-project --with "$WHEEL" synapsectrl serve --help
+          uv run --isolated --no-project --with "$WHEEL" python -c "from importlib.resources import files; assert files('synapsectrl').joinpath('Install-SynapseInspectHook.ps1').is_file()"
+
+      - name: Smoke test HTTP extra modules
+        shell: bash
+        run: |
+          WHEEL=$(ls dist/*.whl)
+          uv run --isolated --no-project --with "$WHEEL" --with "starlette>=1.6.0,<2" --with "uvicorn>=0.52.4,<1" python -c "from synapsectrl.http_api import create_app; print(create_app)"
 
       - name: Smoke test source distribution
         shell: bash
         run: |
-          uv run --isolated --no-project --with dist/*.tar.gz python -c "import synapsectrl; print(synapsectrl.__version__)"
-          uv run --isolated --no-project --with dist/*.tar.gz synapsectrl --version
+          SDIST=$(ls dist/*.tar.gz)
+          uv run --isolated --no-project --with "$SDIST" python -c "import synapsectrl; print(synapsectrl.__version__)"
+          uv run --isolated --no-project --with "$SDIST" synapsectrl --version
 
       - name: Upload distributions
         uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1

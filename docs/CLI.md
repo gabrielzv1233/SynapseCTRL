@@ -42,6 +42,45 @@ The bridge keeps one persistent Synapse client and state watcher alive, emits pr
 
 See [Persistent Bridge](Bridge.md) for the protocol, lifecycle, methods, events, and ownership model.
 
+## HTTP / REST server
+
+HTTP support is optional and uses Starlette + Uvicorn. Install the extra first:
+
+```powershell
+uv tool install "SynapseCTRL[http]"
+```
+
+or:
+
+```powershell
+python -m pip install "SynapseCTRL[http]"
+```
+
+Then start the local REST API:
+
+```powershell
+SynapseCTRL serve
+```
+
+The default listener is:
+
+```text
+http://127.0.0.1:8765
+```
+
+Useful options:
+
+```powershell
+SynapseCTRL serve --port 9000
+SynapseCTRL serve --inspector-port 9333
+SynapseCTRL serve --poll-interval 1 --unavailable-interval 3
+SynapseCTRL serve --no-access-log
+```
+
+Binding to a non-loopback address such as `0.0.0.0` exposes an unauthenticated profile-control API to the reachable network, so SynapseCTRL prints a warning and the default remains loopback-only.
+
+See [HTTP / REST API](HTTP.md) for endpoints, curl examples, error mappings, and security details.
+
 ## Hook management
 
 The required Synapse launch hook can be managed without locating the PowerShell installer manually:
@@ -112,7 +151,9 @@ This works well for:
 - AutoHotkey
 - launchers and macro tools
 
-For Stream Deck plugins and other high-frequency/persistent integrations, prefer `SynapseCTRL bridge --stdio` so one process and connection remain alive.
+For Stream Deck plugins and other high-frequency/persistent integrations owned by one local process, prefer `SynapseCTRL bridge --stdio` so one process and connection remain alive.
+
+For tools that want a conventional REST API instead of owning a child process, use `SynapseCTRL serve`.
 
 ## Device selectors
 
@@ -178,11 +219,11 @@ A timeout means SynapseCTRL sent the request but did not confirm the requested a
 | --- | --- |
 | `0` | success |
 | `1` | runtime failure, failed switch, degraded/unavailable health, or unhealthy hook status |
-| `2` | bad arguments, not found, or ambiguous selector |
+| `2` | bad arguments, missing optional HTTP dependencies, not found, or ambiguous selector |
 | `3` | verification timeout |
 | `130` | interrupted |
 
-For one-shot automation, inspect both the exit code and JSON result. Bridge mode instead uses its persistent protocol responses and events until the bridge process exits.
+For one-shot automation, inspect both the exit code and JSON result. Bridge mode instead uses its persistent protocol responses and events until the bridge process exits. HTTP mode communicates through HTTP status codes plus the same versioned JSON envelope.
 
 ## Diagnostics
 

@@ -22,8 +22,8 @@ jobs:
       - name: Install uv
         uses: astral-sh/setup-uv@c771a70e6277c0a99b617c7a806ffedaca235ff9 # v9.0.0
 
-      - name: Sync project
-        run: uv sync --locked
+      - name: Sync project with HTTP extra
+        run: uv sync --locked --extra http
 
       - name: Run unit tests
         run: uv run python -m unittest discover -s tests -v
@@ -39,6 +39,7 @@ jobs:
         run: |
           uv run synapsectrl --version
           uv run synapsectrl bridge --help
+          uv run synapsectrl serve --help
 
   build:
     name: Build package
@@ -57,8 +58,16 @@ jobs:
       - name: Build wheel and source distribution
         run: uv build
 
-      - name: Smoke test wheel
+      - name: Smoke test base wheel
         shell: bash
         run: |
-          uv run --isolated --no-project --with dist/*.whl synapsectrl --version
-          uv run --isolated --no-project --with dist/*.whl synapsectrl bridge --help
+          WHEEL=$(ls dist/*.whl)
+          uv run --isolated --no-project --with "$WHEEL" synapsectrl --version
+          uv run --isolated --no-project --with "$WHEEL" synapsectrl bridge --help
+          uv run --isolated --no-project --with "$WHEEL" synapsectrl serve --help
+
+      - name: Smoke test HTTP extra modules
+        shell: bash
+        run: |
+          WHEEL=$(ls dist/*.whl)
+          uv run --isolated --no-project --with "$WHEEL" --with "starlette>=1.6.0,<2" --with "uvicorn>=0.52.4,<1" python -c "from synapsectrl.http_api import create_app; print(create_app)"
