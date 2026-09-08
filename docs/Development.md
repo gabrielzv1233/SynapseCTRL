@@ -2,6 +2,12 @@
 
 This page is for contributors and maintainers working on SynapseCTRL itself.
 
+## Tooling
+
+SynapseCTRL is developed and packaged with [**uv**](https://docs.astral.sh/uv/). Use the checked-in `pyproject.toml` and `uv.lock` as the project definition rather than creating a parallel `requirements.txt`, legacy `setup.py`, or separately managed virtual environment unless there is a specific compatibility reason.
+
+If uv is not installed, use the [official installation instructions](https://docs.astral.sh/uv/getting-started/installation/).
+
 ## Install development dependencies
 
 ```powershell
