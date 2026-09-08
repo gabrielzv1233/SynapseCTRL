@@ -18,6 +18,30 @@ SynapseCTRL doctor
 
 Use IDs reported by discovery for unattended automation.
 
+## Persistent bridge
+
+For integrations that stay alive and need frequent state updates, use the built-in bridge instead of repeatedly spawning one-shot CLI commands:
+
+```powershell
+SynapseCTRL bridge
+```
+
+The current/default bridge transport is newline-delimited JSON over stdin/stdout. It can also be selected explicitly:
+
+```powershell
+SynapseCTRL bridge --stdio
+```
+
+A host process can pass its PID so the bridge automatically exits if the owner disappears:
+
+```powershell
+SynapseCTRL bridge --stdio --parent-pid 12345
+```
+
+The bridge keeps one persistent Synapse client and state watcher alive, emits profile/device/Synapse availability events, and reserves stdout exclusively for protocol JSON.
+
+See [Persistent Bridge](Bridge.md) for the protocol, lifecycle, methods, events, and ownership model.
+
 ## Hook management
 
 The required Synapse launch hook can be managed without locating the PowerShell installer manually:
@@ -39,7 +63,7 @@ SynapseCTRL hook status --json
 
 ## JSON mode
 
-Every normal command accepts `--json`:
+Every normal one-shot command accepts `--json`:
 
 ```powershell
 SynapseCTRL devices --json
@@ -73,7 +97,7 @@ Do not parse human-readable output if you are building an integration.
 
 ## Why this is useful
 
-A non-Python program can simply:
+A non-Python program doing occasional operations can simply:
 
 1. start `SynapseCTRL ... --json`
 2. capture stdout
@@ -82,14 +106,13 @@ A non-Python program can simply:
 
 This works well for:
 
-- Stream Deck plugins
 - PowerShell automation
 - Node.js
 - C#
 - AutoHotkey
 - launchers and macro tools
 
-For very frequent operations, use the Python SDK in a persistent helper/service instead of repeatedly spawning the CLI.
+For Stream Deck plugins and other high-frequency/persistent integrations, prefer `SynapseCTRL bridge --stdio` so one process and connection remain alive.
 
 ## Device selectors
 
@@ -159,7 +182,7 @@ A timeout means SynapseCTRL sent the request but did not confirm the requested a
 | `3` | verification timeout |
 | `130` | interrupted |
 
-For automation, inspect both the exit code and JSON result.
+For one-shot automation, inspect both the exit code and JSON result. Bridge mode instead uses its persistent protocol responses and events until the bridge process exits.
 
 ## Diagnostics
 

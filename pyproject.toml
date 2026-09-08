@@ -36,7 +36,7 @@ requires = ["hatchling>=1.27,<2"]
 build-backend = "hatchling.build"
 
 [project.scripts]
-synapsectrl = "synapsectrl.cli:entrypoint"
+synapsectrl = "synapsectrl.entrypoint:entrypoint"
 
 [tool.hatch.build.targets.wheel]
 packages = ["src/synapsectrl"]
