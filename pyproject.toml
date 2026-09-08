@@ -1,5 +1,5 @@
 [project]
-name = "synapsectrl"
+name = "SynapseCTRL"
 version = "0.2.0"
 description = "A local Python SDK and CLI for Razer Synapse 4 software profiles"
 readme = "README.md"
