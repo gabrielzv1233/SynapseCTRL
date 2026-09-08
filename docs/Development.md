@@ -29,6 +29,10 @@ powershell -NoProfile -ExecutionPolicy Bypass -File tests/test_installer.ps1
 uv build
 ```
 
+This creates the wheel and source distribution under `dist/`.
+
+For the release process, see [Publishing to PyPI](Publishing.md).
+
 ## Live acceptance tests
 
 Read-only discovery equivalence:
@@ -52,7 +56,7 @@ Live switching changes actual Synapse configuration. The harness restores the st
 If a Synapse update breaks the integration:
 
 1. Run `synapsectrl doctor`.
-2. Verify/repair the automatic inspector hook.
+2. Verify/repair the automatic inspector hook with `synapsectrl hook status` / `synapsectrl hook repair`.
 3. Run the investigation tools under `codex-stuff/tools`.
 4. Compare renderer topology and storage shape with known findings.
 5. Update discovery/protocol code only after observing the new behavior.
