@@ -14,7 +14,7 @@ SynapseCTRL is published on **PyPI**. Installing it with `uv tool install synaps
 
 - [CLI & JSON](CLI.md) — terminal use, machine-readable output, hook management, scripting, and exit codes
 - [Persistent Bridge](Bridge.md) — long-lived NDJSON stdio protocol, state watching, events, and child-process ownership
-- [HTTP / REST API](HTTP.md) — optional Starlette/Uvicorn server, endpoints, installation, and security guidance
+- [HTTP / REST API](HTTP.md) — optional Starlette/Uvicorn REST server, live Server-Sent Events, installation, and security guidance
 - [Python SDK](Python-SDK.md) — `SynapseClient`, device/profile discovery, switching, and structured errors
 - [API reference](API.md) — complete model and behavior reference
 
@@ -35,8 +35,9 @@ SynapseCTRL is published on **PyPI**. Installing it with `uv tool install synaps
 | One-shot PowerShell / Node / C# automation | CLI with `--json` |
 | Stream Deck or other owned high-frequency local process | `SynapseCTRL bridge --stdio` |
 | Conventional REST integration | `SynapseCTRL serve` with `SynapseCTRL[http]` installed |
+| Shared live HTTP state/events | `GET /v1/events` on `SynapseCTRL serve` |
 | Python application | `SynapseClient` directly |
 | Build a custom persistent Python service | `SynapseService` or `SynapseClient` directly |
 | Diagnose a Synapse update | `SynapseCTRL doctor` first, then `codex-stuff/tools` |
 
-Both long-lived transports reuse the same persistent service core. Bridge mode is private stdio intended to be owned by another local process; HTTP mode is an optional network listener intended for conventional REST clients.
+Both long-lived transports reuse the same persistent service core. Bridge mode is private stdio intended to be owned by another local process; HTTP mode is an optional network listener for conventional REST clients and SSE subscribers.
