@@ -7,7 +7,7 @@ SynapseCTRL needs one Windows-side setup step before it can read or control Raze
 If you are here to remove SynapseCTRL's automatic Synapse hook:
 
 ```powershell
-synapsectrl hook uninstall
+SynapseCTRL hook uninstall
 ```
 
 Then fully exit Synapse from the tray and reopen it normally. See [Setup & Advanced Options](Setup.md#uninstalling) for details.
@@ -16,7 +16,7 @@ Then fully exit Synapse from the tray and reopen it normally. See [Setup & Advan
 
 ## 1. Install SynapseCTRL
 
-SynapseCTRL is available as a package on **PyPI**. Installing the package also installs `synapsectrl` as a command you can call directly from your terminal, so you do not need to run the project through `python` or keep a source checkout around.
+SynapseCTRL is available as a package on **PyPI**. Installing the package also installs the **SynapseCTRL CLI** as a command you can call directly from your terminal, so you do not need to run the project through `python` or keep a source checkout around.
 
 For normal CLI use, installing SynapseCTRL as an isolated [**uv**](https://docs.astral.sh/uv/) tool is recommended:
 
@@ -35,7 +35,7 @@ python -m pip install synapsectrl
 After either install, this should work from a normal terminal:
 
 ```powershell
-synapsectrl --version
+SynapseCTRL --version
 ```
 
 SynapseCTRL currently requires Windows and Python 3.13+.
@@ -51,7 +51,7 @@ uv sync
 When following the commands below from a checkout without installing the CLI globally, prefix them with `uv run`, for example:
 
 ```powershell
-uv run synapsectrl devices
+uv run SynapseCTRL devices
 ```
 
 ## 2. REQUIRED: install the Synapse inspector hook
@@ -59,7 +59,7 @@ uv run synapsectrl devices
 Run:
 
 ```powershell
-synapsectrl hook install
+SynapseCTRL hook install
 ```
 
 Windows will request administrator elevation. The CLI runs the hook installer bundled inside the SynapseCTRL package and configures normal Razer Synapse launches so the Razer App Engine browser process starts with a localhost-only Node inspector.
@@ -67,10 +67,10 @@ Windows will request administrator elevation. The CLI runs the hook installer bu
 If you are working directly from a source checkout, use:
 
 ```powershell
-uv run synapsectrl hook install
+uv run SynapseCTRL hook install
 ```
 
-The raw PowerShell installer remains in the repository for development and manual fallback, but normal users should use the `synapsectrl hook ...` commands. See [Setup & Advanced Options](Setup.md) for those lower-level details.
+The raw PowerShell installer remains in the repository for development and manual fallback, but normal users should use the `SynapseCTRL hook ...` commands. See [Setup & Advanced Options](Setup.md) for those lower-level details.
 
 After the installer completes:
 
@@ -78,26 +78,26 @@ After the installer completes:
 2. Launch Razer Synapse normally.
 3. Continue with the checks below.
 
-> **After Razer Synapse updates, you may need to run `synapsectrl hook repair` if `synapsectrl doctor` or `synapsectrl hook status` reports that the automatic hook is missing or unhealthy.** The current shim automatically locates the newest `app-*` Razer App Engine directory, so a version-folder change alone normally does not require reinstalling the hook.
+> **After Razer Synapse updates, you may need to run `SynapseCTRL hook repair` if `SynapseCTRL doctor` or `SynapseCTRL hook status` reports that the automatic hook is missing or unhealthy.** The current shim automatically locates the newest `app-*` Razer App Engine directory, so a version-folder change alone normally does not require reinstalling the hook.
 
 ## 3. Check the hook and connection
 
 Check the installed launch hook:
 
 ```powershell
-synapsectrl hook status
+SynapseCTRL hook status
 ```
 
 Then check SynapseCTRL itself:
 
 ```powershell
-synapsectrl status
+SynapseCTRL status
 ```
 
 For the most useful setup check, run:
 
 ```powershell
-synapsectrl doctor
+SynapseCTRL doctor
 ```
 
 A healthy setup should report `ready` and show a reachable inspector plus discovered device information.
@@ -105,7 +105,7 @@ A healthy setup should report `ready` and show a reachable inspector plus discov
 ## 4. List your devices
 
 ```powershell
-synapsectrl devices
+SynapseCTRL devices
 ```
 
 Example shape:
@@ -123,7 +123,7 @@ Do not copy example IDs from documentation. Use the IDs reported by your own ins
 Human-readable names work when they are unambiguous:
 
 ```powershell
-synapsectrl profiles "Naga"
+SynapseCTRL profiles "Naga"
 ```
 
 You will get the software profiles SynapseCTRL discovered for that device, including GUIDs and the active marker.
@@ -133,13 +133,13 @@ You will get the software profiles SynapseCTRL discovered for that device, inclu
 Try a profile that actually exists on your device:
 
 ```powershell
-synapsectrl switch "Naga" "Siege"
+SynapseCTRL switch "Naga" "Siege"
 ```
 
 For unattended automation, prefer the stable device ID and profile GUID returned by discovery:
 
 ```powershell
-synapsectrl switch "DEVICE_ID_FROM_DISCOVERY" "PROFILE_GUID"
+SynapseCTRL switch "DEVICE_ID_FROM_DISCOVERY" "PROFILE_GUID"
 ```
 
 By default, SynapseCTRL sends the switch through Synapse and then verifies that Synapse reports the requested profile as active.
@@ -149,9 +149,9 @@ By default, SynapseCTRL sends the switch through Synapse and then verifies that 
 Anything that needs to consume SynapseCTRL programmatically should use `--json` instead of parsing human-readable terminal output:
 
 ```powershell
-synapsectrl devices --json
-synapsectrl profiles "Naga" --json
-synapsectrl switch "Naga" "Siege" --json
+SynapseCTRL devices --json
+SynapseCTRL profiles "Naga" --json
+SynapseCTRL switch "Naga" "Siege" --json
 ```
 
 Successful output is a single JSON object with `apiVersion: "1"` and `data`. Errors use the same envelope with an `error` object.
