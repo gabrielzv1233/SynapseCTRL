@@ -19,7 +19,7 @@ uv sync
 ```powershell
 uv run python -m unittest discover -s tests -v
 uv run python -m compileall -q src examples
-uv run synapsectrl --help
+uv run SynapseCTRL --help
 powershell -NoProfile -ExecutionPolicy Bypass -File tests/test_installer.ps1
 ```
 
@@ -55,8 +55,8 @@ Live switching changes actual Synapse configuration. The harness restores the st
 
 If a Synapse update breaks the integration:
 
-1. Run `synapsectrl doctor`.
-2. Verify/repair the automatic inspector hook with `synapsectrl hook status` / `synapsectrl hook repair`.
+1. Run `SynapseCTRL doctor`.
+2. Verify/repair the automatic inspector hook with `SynapseCTRL hook status` / `SynapseCTRL hook repair`.
 3. Run the investigation tools under `codex-stuff/tools`.
 4. Compare renderer topology and storage shape with known findings.
 5. Update discovery/protocol code only after observing the new behavior.
