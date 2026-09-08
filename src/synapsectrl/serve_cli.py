@@ -5,6 +5,8 @@ from __future__ import annotations
 import argparse
 import ipaddress
 import math
+import os
+import secrets
 import sys
 from typing import Sequence
 
@@ -12,6 +14,7 @@ from .service import SynapseService
 
 
 _HTTP_DEPENDENCIES = {"starlette", "uvicorn", "anyio", "click", "h11"}
+_HTTP_TOKEN_ENV = "SYNAPSECTRL_HTTP_TOKEN"
 
 
 def _positive_seconds(value: str) -> float:
@@ -34,6 +37,18 @@ def _port(value: str) -> int:
     return result
 
 
+def _token(value: str) -> str:
+    if (
+        not value
+        or not value.isascii()
+        or any(character.isspace() for character in value)
+    ):
+        raise argparse.ArgumentTypeError(
+            "must be nonempty ASCII and contain no whitespace"
+        )
+    return value
+
+
 def _is_loopback(host: str) -> bool:
     normalized = host.strip().lower()
     if normalized == "localhost":
@@ -48,7 +63,7 @@ def build_serve_parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
         prog="synapsectrl serve",
         description=(
-            "Run the optional SynapseCTRL REST API using Starlette and Uvicorn. "
+            "Run the optional SynapseCTRL REST/SSE API using Starlette and Uvicorn. "
             "The server binds to loopback by default."
         ),
     )
@@ -85,6 +100,21 @@ def build_serve_parser() -> argparse.ArgumentParser:
         metavar="SECONDS",
         help="reconnect polling interval while unavailable (default: 2)",
     )
+    auth = parser.add_mutually_exclusive_group()
+    auth.add_argument(
+        "--token",
+        type=_token,
+        metavar="TOKEN",
+        help=(
+            "require this Bearer token for /v1 routes; if omitted, "
+            f"{_HTTP_TOKEN_ENV} is used when set"
+        ),
+    )
+    auth.add_argument(
+        "--generate-token",
+        action="store_true",
+        help="generate a strong one-time Bearer token for this server process",
+    )
     parser.add_argument(
         "--log-level",
         choices=("critical", "error", "warning", "info", "debug", "trace"),
@@ -106,8 +136,32 @@ def _missing_http_message() -> str:
     )
 
 
+def _resolve_token(args) -> str | None:
+    if args.generate_token:
+        token = secrets.token_urlsafe(32)
+        print(f"Generated HTTP Bearer token: {token}", file=sys.stderr)
+        return token
+
+    token = args.token
+    if token is None:
+        token = os.environ.get(_HTTP_TOKEN_ENV)
+    if token is None:
+        return None
+
+    try:
+        return _token(token)
+    except argparse.ArgumentTypeError as error:
+        raise ValueError(f"{_HTTP_TOKEN_ENV}: {error}") from error
+
+
 def main(argv: Sequence[str] | None = None) -> int:
     args = build_serve_parser().parse_args(argv)
+
+    try:
+        token = _resolve_token(args)
+    except ValueError as error:
+        print(f"Error: {error}", file=sys.stderr)
+        return 2
 
     try:
         import uvicorn
@@ -120,12 +174,18 @@ def main(argv: Sequence[str] | None = None) -> int:
         raise
 
     if not _is_loopback(args.host):
-        print(
-            "WARNING: SynapseCTRL is listening on a non-loopback address. "
-            "The HTTP API is currently unauthenticated; anyone who can reach this port may be able "
-            "to inspect or switch Synapse profiles.",
-            file=sys.stderr,
-        )
+        if token is None:
+            warning = (
+                "WARNING: SynapseCTRL is listening on a non-loopback address without authentication. "
+                "Anyone who can reach this port may be able to inspect state or switch Synapse profiles."
+            )
+        else:
+            warning = (
+                "WARNING: SynapseCTRL is listening on a non-loopback address with Bearer authentication, "
+                "but the built-in server uses plain HTTP. Do not send the token across an untrusted network; "
+                "use a trusted network or a TLS-terminating reverse proxy."
+            )
+        print(warning, file=sys.stderr)
 
     service = SynapseService(
         port=args.inspector_port,
@@ -133,7 +193,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         poll_interval=args.poll_interval,
         unavailable_interval=args.unavailable_interval,
     )
-    app = create_app(service)
+    app = create_app(service, token=token)
     try:
         service.start()
         uvicorn.run(

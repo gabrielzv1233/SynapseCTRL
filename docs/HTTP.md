@@ -32,6 +32,7 @@ Defaults:
 HTTP address:    127.0.0.1
 HTTP port:       8765
 Inspector port:  9229
+Authentication:  disabled unless configured
 ```
 
 The root endpoint is therefore:
@@ -74,6 +75,70 @@ Disable per-request Uvicorn access logs:
 SynapseCTRL serve --no-access-log
 ```
 
+## Bearer authentication
+
+Authentication is optional. When no token is configured, the API behaves exactly as before and `/v1/*` is unauthenticated.
+
+Provide a token directly:
+
+```powershell
+SynapseCTRL serve --token "YOUR_RANDOM_TOKEN"
+```
+
+For scripts or services, the environment variable is usually preferable because it avoids putting the token directly in the process command line:
+
+```powershell
+$env:SYNAPSECTRL_HTTP_TOKEN = "YOUR_RANDOM_TOKEN"
+SynapseCTRL serve
+```
+
+You can also ask SynapseCTRL to generate a strong random token for the current server process:
+
+```powershell
+SynapseCTRL serve --generate-token
+```
+
+The generated token is printed once when the server starts. Save/copy it before connecting clients; a new token is generated the next time you use `--generate-token`.
+
+When authentication is enabled:
+
+- `GET /` remains public so clients can discover the API version and that Bearer authentication is enabled
+- every `/v1/*` endpoint requires the token
+- the SSE event stream at `/v1/events` is protected too
+
+Send the token as:
+
+```http
+Authorization: Bearer YOUR_RANDOM_TOKEN
+```
+
+Example:
+
+```powershell
+curl.exe `
+  -H "Authorization: Bearer YOUR_RANDOM_TOKEN" `
+  "http://127.0.0.1:8765/v1/state"
+```
+
+Missing or incorrect credentials return `401`:
+
+```json
+{
+  "apiVersion": "1",
+  "error": {
+    "code": "unauthorized",
+    "message": "A valid Bearer token is required.",
+    "details": {}
+  }
+}
+```
+
+The response also includes:
+
+```http
+WWW-Authenticate: Bearer
+```
+
 ## Security
 
 The default bind address is loopback-only:
@@ -82,13 +147,17 @@ The default bind address is loopback-only:
 127.0.0.1
 ```
 
-That is the recommended configuration for normal use.
+That is still the recommended configuration for normal use.
 
-If `--host` is set to a non-loopback address such as `0.0.0.0`, SynapseCTRL prints a warning. The current HTTP API does **not** provide authentication. Anyone who can reach that port may be able to inspect devices/profiles, subscribe to state events, or switch active profiles.
+If `--host` is set to a non-loopback address such as `0.0.0.0`, SynapseCTRL prints a warning.
 
-Only expose the server to a trusted network and protect it with the host firewall or another trusted access-control layer.
+Without a configured token, anyone who can reach that port may be able to inspect devices/profiles, subscribe to state events, or switch active profiles.
 
-CORS is not enabled by default. This is intentional: arbitrary web pages should not be granted browser access to a local unauthenticated profile-control API.
+Bearer authentication protects API access, but the built-in Uvicorn configuration is still plain **HTTP**, not HTTPS. A token sent over an untrusted network can therefore be observed in transit. For anything beyond a trusted LAN, put SynapseCTRL behind a TLS-terminating reverse proxy or another trusted encrypted transport.
+
+CORS is not enabled by default. This is intentional: arbitrary web pages should not be granted browser access to a local profile-control API.
+
+Native browser `EventSource` does not provide a standard way to attach a custom `Authorization` header. If Bearer authentication is enabled and a browser client needs `/v1/events`, use a streaming `fetch` implementation or a trusted same-origin/reverse-proxy arrangement rather than placing the token in the query string.
 
 ## Response envelope
 
@@ -118,6 +187,7 @@ Common HTTP mappings include:
 
 | SynapseCTRL error | HTTP status |
 | --- | ---: |
+| missing/invalid Bearer token | `401` |
 | `invalid_argument` / `invalid_json` | `400` |
 | `device_not_found` / `profile_not_found` | `404` |
 | `ambiguous_device` / `ambiguous_profile` | `409` |
@@ -134,7 +204,7 @@ A profile switch that returns a normal `SwitchResult` remains a successful HTTP 
 GET /
 ```
 
-Returns the SynapseCTRL version, HTTP API version, and basic endpoint information. This endpoint does not require Synapse to be available.
+Returns the SynapseCTRL version, HTTP API version, authentication mode, and basic endpoint information. This endpoint does not require Synapse to be available and remains public when Bearer authentication is enabled.
 
 ### Full Synapse status
 
@@ -191,10 +261,19 @@ SynapseCTRL sends an SSE comment roughly every 15 seconds while no events are oc
 
 These heartbeats help proxies and HTTP clients keep the connection open. They are not application events and should be ignored by SSE parsers.
 
-Quick test with curl:
+Quick test without authentication:
 
 ```powershell
 curl.exe -N -H "Accept: text/event-stream" "http://127.0.0.1:8765/v1/events"
+```
+
+With Bearer authentication:
+
+```powershell
+curl.exe -N `
+  -H "Accept: text/event-stream" `
+  -H "Authorization: Bearer YOUR_RANDOM_TOKEN" `
+  "http://127.0.0.1:8765/v1/events"
 ```
 
 The stream remains open until the client disconnects or the server stops. Each client receives its own bounded event queue. If a client falls far enough behind to fill that queue, older queued events are discarded in favor of newer state changes; clients should treat the stream as live state notification rather than a durable event log.

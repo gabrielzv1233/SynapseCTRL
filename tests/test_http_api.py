@@ -7,7 +7,7 @@ import json
 import unittest
 
 from synapsectrl.errors import SynapseError
-from synapsectrl.http_api import HttpApi, create_app
+from synapsectrl.http_api import BearerAuthMiddleware, HttpApi, create_app
 from synapsectrl.models import Device, Profile, Status, SwitchResult
 
 
@@ -130,6 +130,34 @@ def sse_payload(chunk: bytes):
     return json.loads(data_line.removeprefix("data: "))
 
 
+async def invoke_asgi(app, path, authorization=None):
+    headers = []
+    if authorization is not None:
+        headers.append((b"authorization", authorization.encode("latin-1")))
+    scope = {
+        "type": "http",
+        "http_version": "1.1",
+        "method": "GET",
+        "scheme": "http",
+        "path": path,
+        "raw_path": path.encode("ascii"),
+        "query_string": b"",
+        "headers": headers,
+        "client": ("127.0.0.1", 12345),
+        "server": ("127.0.0.1", 8765),
+    }
+    messages = []
+
+    async def receive():
+        return {"type": "http.request", "body": b"", "more_body": False}
+
+    async def send(message):
+        messages.append(message)
+
+    await app(scope, receive, send)
+    return messages
+
+
 class HttpApiTests(unittest.IsolatedAsyncioTestCase):
     def setUp(self):
         self.service = FakeService()
@@ -142,7 +170,13 @@ class HttpApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(data["apiVersion"], "1")
         self.assertEqual(data["data"]["name"], "SynapseCTRL")
         self.assertEqual(data["data"]["transport"], "http")
+        self.assertEqual(data["data"]["authentication"], "none")
         self.assertEqual(data["data"]["endpoints"]["events"], "/v1/events")
+
+    async def test_root_reports_bearer_auth_when_enabled(self):
+        api = HttpApi(self.service, auth_enabled=True)
+        response = await api.root(FakeRequest())
+        self.assertEqual(payload(response)["data"]["authentication"], "bearer")
 
     async def test_devices_and_profiles_use_public_service_methods(self):
         devices = await self.api.devices(FakeRequest())
@@ -250,6 +284,42 @@ class HttpApiTests(unittest.IsolatedAsyncioTestCase):
             await asyncio.wait_for(anext(iterator), timeout=1)
         self.assertEqual(self.service.subscribers, [])
 
+    async def test_bearer_middleware_rejects_missing_and_wrong_tokens(self):
+        called = False
+
+        async def downstream(scope, receive, send):
+            nonlocal called
+            called = True
+            await send({"type": "http.response.start", "status": 204, "headers": []})
+            await send({"type": "http.response.body", "body": b""})
+
+        middleware = BearerAuthMiddleware(downstream, token="secret-token")
+        for authorization in (None, "Bearer wrong-token"):
+            with self.subTest(authorization=authorization):
+                called = False
+                messages = await invoke_asgi(middleware, "/v1/state", authorization)
+                self.assertFalse(called)
+                self.assertEqual(messages[0]["status"], 401)
+                headers = dict(messages[0]["headers"])
+                self.assertEqual(headers[b"www-authenticate"], b"Bearer")
+                body = json.loads(messages[1]["body"])
+                self.assertEqual(body["error"]["code"], "unauthorized")
+
+    async def test_bearer_middleware_accepts_correct_token_and_leaves_root_public(self):
+        calls = []
+
+        async def downstream(scope, receive, send):
+            calls.append(scope["path"])
+            await send({"type": "http.response.start", "status": 204, "headers": []})
+            await send({"type": "http.response.body", "body": b""})
+
+        middleware = BearerAuthMiddleware(downstream, token="secret-token")
+        authenticated = await invoke_asgi(middleware, "/v1/state", "Bearer secret-token")
+        public_root = await invoke_asgi(middleware, "/")
+        self.assertEqual(authenticated[0]["status"], 204)
+        self.assertEqual(public_root[0]["status"], 204)
+        self.assertEqual(calls, ["/v1/state", "/"])
+
     def test_create_app_exposes_expected_routes_and_service(self):
         app = create_app(self.service)
         paths = {route.path for route in app.routes}
@@ -258,6 +328,13 @@ class HttpApiTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("/v1/devices", paths)
         self.assertIn("/v1/devices/{device}/profiles/{profile}/activate", paths)
         self.assertIs(app.state.synapse_service, self.service)
+        self.assertFalse(app.state.auth_enabled)
+
+    def test_create_app_accepts_token_and_rejects_bad_tokens(self):
+        app = create_app(self.service, token="secret-token")
+        self.assertTrue(app.state.auth_enabled)
+        with self.assertRaises(SynapseError):
+            create_app(self.service, token="bad token")
 
 
 if __name__ == "__main__":
