@@ -13,6 +13,7 @@ SynapseCTRL is published on **PyPI**. Installing it with `uv tool install synaps
 ## Using SynapseCTRL
 
 - [CLI & JSON](CLI.md) — terminal use, machine-readable output, hook management, scripting, and exit codes
+- [Persistent Bridge](Bridge.md) — long-lived NDJSON stdio protocol, state watching, events, and child-process ownership
 - [Python SDK](Python-SDK.md) — `SynapseClient`, device/profile discovery, switching, and structured errors
 - [API reference](API.md) — complete model and behavior reference
 
@@ -30,9 +31,10 @@ SynapseCTRL is published on **PyPI**. Installing it with `uv tool install synaps
 | Install the global CLI | `uv tool install synapsectrl` or `pip install synapsectrl` |
 | Try SynapseCTRL manually | `SynapseCTRL ...` |
 | Manage the Synapse hook | `SynapseCTRL hook install/status/repair/uninstall` |
-| Stream Deck / PowerShell / Node / C# utility | CLI with `--json` |
+| One-shot PowerShell / Node / C# automation | CLI with `--json` |
+| Stream Deck or other high-frequency local integration | `SynapseCTRL bridge --stdio` |
 | Python application | `SynapseClient` directly |
-| High-frequency or persistent integration | Wrap `SynapseClient` in your own local service |
+| Build a custom persistent Python service | `SynapseService` or `SynapseClient` directly |
 | Diagnose a Synapse update | `SynapseCTRL doctor` first, then `codex-stuff/tools` |
 
-SynapseCTRL itself does not expose a network server. The public product interfaces are the Python SDK and CLI/JSON output.
+The current long-lived transport is local stdio rather than a network listener. HTTP/REST support is planned as an optional transport built on the same persistent service core.
