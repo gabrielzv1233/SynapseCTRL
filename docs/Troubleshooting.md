@@ -2,10 +2,12 @@
 
 Start here whenever SynapseCTRL stops working after setup or a Razer Synapse update.
 
+If SynapseCTRL was installed from PyPI or as an uv tool, run `synapsectrl` directly. From a source checkout, prefix the same commands with `uv run`.
+
 ## 1. Run the product diagnostic
 
 ```powershell
-uv run synapsectrl doctor
+synapsectrl doctor
 ```
 
 This is the preferred first check because it tests:
@@ -21,31 +23,37 @@ This is the preferred first check because it tests:
 ## 2. Save a report
 
 ```powershell
-uv run synapsectrl doctor --out .\report.json
+synapsectrl doctor --out .\report.json
 ```
 
 Review the file before sharing it. Diagnostic reports can include device identifiers, profile names, renderer names, and private Synapse metadata.
 
 ## Inspector unreachable
 
-Make sure Synapse is running and that the automatic hook is installed.
-
-Repair/reinstall:
+Make sure Synapse is running and inspect the automatic hook first:
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\Install-SynapseInspectHook.ps1 -NoPause
+synapsectrl hook status
+```
+
+Repair it with:
+
+```powershell
+synapsectrl hook repair
 ```
 
 Then fully exit Synapse from the tray and reopen it.
 
-> If this started immediately after a Razer Synapse update, rerunning the installer is a reasonable repair step when `doctor` reports the hook as missing or unhealthy.
+> If this started immediately after a Razer Synapse update, `synapsectrl hook repair` is the normal repair step when `doctor` or `hook status` reports the hook as missing or unhealthy.
+
+The raw `Install-SynapseInspectHook.ps1` script remains in the source repository for lower-level installer debugging, but normal users do not need to invoke it directly.
 
 ## Device appears but is not controllable
 
 Use:
 
 ```powershell
-uv run synapsectrl devices --json
+synapsectrl devices --json
 ```
 
 Inspect `controllable` and `unavailableReason` for that device.
@@ -59,7 +67,7 @@ A verification timeout means the switch request was sent but the requested activ
 Refresh state before sending another request:
 
 ```powershell
-uv run synapsectrl profiles "DEVICE"
+synapsectrl profiles "DEVICE"
 ```
 
 Then retry only if needed.
@@ -67,14 +75,14 @@ Then retry only if needed.
 You can also increase verification time:
 
 ```powershell
-uv run synapsectrl switch "DEVICE" "PROFILE" --timeout 10
+synapsectrl switch "DEVICE" "PROFILE" --timeout 10
 ```
 
 ## Deep diagnostics after a Synapse update
 
 The repository includes developer investigation tools under `codex-stuff/tools`.
 
-Typical sequence:
+Typical sequence from a source checkout:
 
 ```powershell
 uv run python .\codex-stuff\tools\probe.py
@@ -90,7 +98,7 @@ These tools intentionally expose more private Synapse detail than the public SDK
 ## Uninstall the hook
 
 ```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\Install-SynapseInspectHook.ps1 -Uninstall -NoPause
+synapsectrl hook uninstall
 ```
 
 Fully restart Synapse afterward.
