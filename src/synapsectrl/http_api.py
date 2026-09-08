@@ -4,6 +4,7 @@ from __future__ import annotations
 
 from contextlib import asynccontextmanager
 import json
+import logging
 import math
 from typing import Any
 
@@ -19,6 +20,7 @@ from .service import SynapseService
 
 
 HTTP_API_VERSION = "1"
+_LOG = logging.getLogger("synapsectrl.http")
 
 _ERROR_STATUS = {
     "invalid_argument": 400,
@@ -66,6 +68,19 @@ def _positive_seconds(value: Any, name: str, default: float) -> float:
     if not math.isfinite(result) or result <= 0:
         raise SynapseError("invalid_argument", f"{name} must be a finite number greater than zero.")
     return result
+
+
+async def _unexpected_error(request: Request, error: Exception) -> JSONResponse:
+    _LOG.exception("Unhandled SynapseCTRL HTTP error", exc_info=error)
+    payload = {
+        "apiVersion": HTTP_API_VERSION,
+        "error": {
+            "code": "internal_error",
+            "message": "An unexpected server error occurred.",
+            "details": {},
+        },
+    }
+    return JSONResponse(payload, status_code=500)
 
 
 class HttpApi:
@@ -188,7 +203,11 @@ def create_app(service: SynapseService | None = None, **service_options: Any) ->
             methods=["POST"],
         ),
     ]
-    app = Starlette(routes=routes, lifespan=lifespan)
+    app = Starlette(
+        routes=routes,
+        lifespan=lifespan,
+        exception_handlers={Exception: _unexpected_error},
+    )
     app.state.synapse_service = service
     app.state.synapse_api = api
     return app
