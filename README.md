@@ -3,6 +3,7 @@
 [![License](https://img.shields.io/badge/License-Apache%202.0-blue.svg)](LICENSE)
 [![Python](https://img.shields.io/badge/Python-3.13%2B-3776AB?logo=python&logoColor=white)](https://www.python.org/)
 [![Windows](https://img.shields.io/badge/Windows-11%20%2F%2010-0078D4?logo=windows&logoColor=white)](https://github.com/gabrielzv1233/SynapseCTRL)
+[![Ko-fi](https://img.shields.io/badge/Ko--fi-Support%20the%20project-FF5E5B?logo=ko-fi&logoColor=white)](https://ko-fi.com/gabrielzv1233)
 
 Programmatic control for **Razer Synapse 4 software profiles** on Windows.
 
