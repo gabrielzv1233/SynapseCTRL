@@ -16,6 +16,8 @@ The source project is developed, dependency-managed, and built with [**uv**](htt
 
 ## Install
 
+SynapseCTRL is published on **PyPI**. Installing it exposes `synapsectrl` as a terminal command, so normal usage does not require cloning the repository or running the project through Python manually.
+
 For the CLI, an isolated [uv tool](https://docs.astral.sh/uv/guides/tools/) install is recommended:
 
 ```powershell
@@ -28,6 +30,13 @@ Standard pip installation also works:
 ```powershell
 python -m pip install synapsectrl
 synapsectrl hook install
+```
+
+After either install, commands are available directly from the terminal:
+
+```powershell
+synapsectrl --version
+synapsectrl devices
 ```
 
 Windows will request administrator elevation for the hook installer. Fully exit and reopen Razer Synapse afterward.
@@ -56,7 +65,7 @@ Python applications can use `SynapseClient` directly instead of spawning the CLI
 
 ## Documentation
 
-- **[Getting Started](https://github.com/gabrielzv1233/SynapseCTRL/blob/main/docs/Getting-Started.md)** — install the required hook, verify SynapseCTRL works, and make your first switch
+- **[Getting Started](https://github.com/gabrielzv1233/SynapseCTRL/blob/main/docs/Getting-Started.md)** — install the package and required hook, verify SynapseCTRL works, and make your first switch
 - **[Documentation home](https://github.com/gabrielzv1233/SynapseCTRL/blob/main/docs/README.md)** — find setup, CLI, SDK, architecture, troubleshooting, and developer references
 - **[CLI & JSON](https://github.com/gabrielzv1233/SynapseCTRL/blob/main/docs/CLI.md)** — scripting and cross-language integrations
 - **[Python SDK](https://github.com/gabrielzv1233/SynapseCTRL/blob/main/docs/Python-SDK.md)** — use SynapseCTRL directly from Python
