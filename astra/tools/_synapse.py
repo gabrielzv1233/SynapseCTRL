@@ -208,7 +208,7 @@ def renderer_state(inspector: Inspector, *, include_values: bool = True) -> dict
                 (() => {{
                     const keys = Object.keys(localStorage);
                     const values = {{}};
-                    if (includeValues) {{
+                    if ({include_values_js}) {{
                         for (const key of keys) {{
                             if (
                                 key === "connectedDevices" ||
