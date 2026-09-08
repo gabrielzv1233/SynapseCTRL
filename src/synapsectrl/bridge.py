@@ -3,11 +3,11 @@
 from __future__ import annotations
 
 import json
-import os
 import sys
 import threading
-import time
 from typing import Any, TextIO
+
+import psutil
 
 from . import __version__
 from .errors import SynapseError
@@ -129,22 +129,25 @@ class StdioBridge:
     def _parent_watch_loop(self) -> None:
         assert self.parent_pid is not None
         while not self._shutdown.wait(1.0):
+            if psutil.pid_exists(self.parent_pid):
+                continue
+            self._shutdown.set()
             try:
-                os.kill(self.parent_pid, 0)
-            except OSError:
-                self._shutdown.set()
-                try:
-                    self.stdin.close()
-                except Exception:
-                    pass
-                return
+                self.stdin.close()
+            except Exception:
+                pass
+            return
 
     def run(self) -> int:
         self.service.start()
         if self.parent_pid is not None:
             if self.parent_pid <= 0:
                 raise SynapseError("invalid_argument", "parent PID must be greater than zero.")
-            self._parent_thread = threading.Thread(target=self._parent_watch_loop, name="SynapseCTRLParentWatch", daemon=True)
+            self._parent_thread = threading.Thread(
+                target=self._parent_watch_loop,
+                name="SynapseCTRLParentWatch",
+                daemon=True,
+            )
             self._parent_thread.start()
 
         try:
@@ -161,7 +164,7 @@ class StdioBridge:
                     continue
                 response = self.handle_request(request)
                 self._write(response)
-                if request.get("method") == "shutdown" if isinstance(request, dict) else False:
+                if isinstance(request, dict) and request.get("method") == "shutdown":
                     break
             return 0
         finally:
