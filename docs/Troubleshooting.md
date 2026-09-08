@@ -2,12 +2,12 @@
 
 Start here whenever SynapseCTRL stops working after setup or a Razer Synapse update.
 
-If SynapseCTRL was installed from PyPI or as an uv tool, run `synapsectrl` directly. From a source checkout, prefix the same commands with `uv run`.
+If SynapseCTRL was installed from PyPI or as an uv tool, run `SynapseCTRL` directly. From a source checkout, prefix the same commands with `uv run`.
 
 ## 1. Run the product diagnostic
 
 ```powershell
-synapsectrl doctor
+SynapseCTRL doctor
 ```
 
 This is the preferred first check because it tests:
@@ -23,7 +23,7 @@ This is the preferred first check because it tests:
 ## 2. Save a report
 
 ```powershell
-synapsectrl doctor --out .\report.json
+SynapseCTRL doctor --out .\report.json
 ```
 
 Review the file before sharing it. Diagnostic reports can include device identifiers, profile names, renderer names, and private Synapse metadata.
@@ -33,18 +33,18 @@ Review the file before sharing it. Diagnostic reports can include device identif
 Make sure Synapse is running and inspect the automatic hook first:
 
 ```powershell
-synapsectrl hook status
+SynapseCTRL hook status
 ```
 
 Repair it with:
 
 ```powershell
-synapsectrl hook repair
+SynapseCTRL hook repair
 ```
 
 Then fully exit Synapse from the tray and reopen it.
 
-> If this started immediately after a Razer Synapse update, `synapsectrl hook repair` is the normal repair step when `doctor` or `hook status` reports the hook as missing or unhealthy.
+> If this started immediately after a Razer Synapse update, `SynapseCTRL hook repair` is the normal repair step when `doctor` or `hook status` reports the hook as missing or unhealthy.
 
 The raw `Install-SynapseInspectHook.ps1` script remains in the source repository for lower-level installer debugging, but normal users do not need to invoke it directly.
 
@@ -53,7 +53,7 @@ The raw `Install-SynapseInspectHook.ps1` script remains in the source repository
 Use:
 
 ```powershell
-synapsectrl devices --json
+SynapseCTRL devices --json
 ```
 
 Inspect `controllable` and `unavailableReason` for that device.
@@ -67,7 +67,7 @@ A verification timeout means the switch request was sent but the requested activ
 Refresh state before sending another request:
 
 ```powershell
-synapsectrl profiles "DEVICE"
+SynapseCTRL profiles "DEVICE"
 ```
 
 Then retry only if needed.
@@ -75,7 +75,7 @@ Then retry only if needed.
 You can also increase verification time:
 
 ```powershell
-synapsectrl switch "DEVICE" "PROFILE" --timeout 10
+SynapseCTRL switch "DEVICE" "PROFILE" --timeout 10
 ```
 
 ## Deep diagnostics after a Synapse update
@@ -98,7 +98,7 @@ These tools intentionally expose more private Synapse detail than the public SDK
 ## Uninstall the hook
 
 ```powershell
-synapsectrl hook uninstall
+SynapseCTRL hook uninstall
 ```
 
 Fully restart Synapse afterward.
