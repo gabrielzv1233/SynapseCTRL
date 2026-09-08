@@ -38,8 +38,14 @@ def _port(value: str) -> int:
 
 
 def _token(value: str) -> str:
-    if not value or any(character.isspace() for character in value):
-        raise argparse.ArgumentTypeError("must be nonempty and contain no whitespace")
+    if (
+        not value
+        or not value.isascii()
+        or any(character.isspace() for character in value)
+    ):
+        raise argparse.ArgumentTypeError(
+            "must be nonempty ASCII and contain no whitespace"
+        )
     return value
 
 
