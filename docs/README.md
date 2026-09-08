@@ -2,7 +2,7 @@
 
 Use this page as the map for SynapseCTRL documentation.
 
-SynapseCTRL is published on **PyPI**. Installing it with `uv tool install synapsectrl` or `pip install synapsectrl` installs `synapsectrl` as a terminal command, so normal users can run commands such as `synapsectrl devices` and `synapsectrl hook install` globally without keeping a source checkout open.
+SynapseCTRL is published on **PyPI**. Installing it with `uv tool install synapsectrl` or `pip install synapsectrl` installs the **SynapseCTRL CLI** as a terminal command, so normal users can run commands such as `SynapseCTRL devices` and `SynapseCTRL hook install` globally without keeping a source checkout open.
 
 ## Start here
 
@@ -28,11 +28,11 @@ SynapseCTRL is published on **PyPI**. Installing it with `uv tool install synaps
 | Goal | Recommended interface |
 | --- | --- |
 | Install the global CLI | `uv tool install synapsectrl` or `pip install synapsectrl` |
-| Try SynapseCTRL manually | `synapsectrl ...` |
-| Manage the Synapse hook | `synapsectrl hook install/status/repair/uninstall` |
+| Try SynapseCTRL manually | `SynapseCTRL ...` |
+| Manage the Synapse hook | `SynapseCTRL hook install/status/repair/uninstall` |
 | Stream Deck / PowerShell / Node / C# utility | CLI with `--json` |
 | Python application | `SynapseClient` directly |
 | High-frequency or persistent integration | Wrap `SynapseClient` in your own local service |
-| Diagnose a Synapse update | `synapsectrl doctor` first, then `codex-stuff/tools` |
+| Diagnose a Synapse update | `SynapseCTRL doctor` first, then `codex-stuff/tools` |
 
 SynapseCTRL itself does not expose a network server. The public product interfaces are the Python SDK and CLI/JSON output.
