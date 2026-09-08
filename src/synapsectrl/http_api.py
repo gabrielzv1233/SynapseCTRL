@@ -7,6 +7,7 @@ from contextlib import asynccontextmanager
 import json
 import logging
 import math
+import secrets
 from typing import Any
 
 from starlette.applications import Starlette
@@ -84,6 +85,62 @@ def _sse_event(event: str, data: Any) -> bytes:
     return f"event: {event}\ndata: {payload}\n\n".encode("utf-8")
 
 
+def _unauthorized_response() -> JSONResponse:
+    return JSONResponse(
+        {
+            "apiVersion": HTTP_API_VERSION,
+            "error": {
+                "code": "unauthorized",
+                "message": "A valid Bearer token is required.",
+                "details": {},
+            },
+        },
+        status_code=401,
+        headers={"WWW-Authenticate": "Bearer"},
+    )
+
+
+class BearerAuthMiddleware:
+    """Protect versioned HTTP API routes with a configured Bearer token.
+
+    The root information endpoint remains public so callers can discover the API
+    version and whether authentication is enabled. All `/v1` routes require the
+    token when this middleware is installed.
+    """
+
+    def __init__(self, app, *, token: str) -> None:
+        if not token or any(character.isspace() for character in token):
+            raise SynapseError(
+                "invalid_argument",
+                "HTTP bearer token must be nonempty and contain no whitespace.",
+            )
+        self.app = app
+        self.token = token
+        self.expected = f"Bearer {token}"
+
+    async def __call__(self, scope, receive, send) -> None:
+        if scope.get("type") != "http":
+            await self.app(scope, receive, send)
+            return
+
+        path = scope.get("path", "")
+        if not (path == "/v1" or path.startswith("/v1/")):
+            await self.app(scope, receive, send)
+            return
+
+        authorization: str | None = None
+        for raw_name, raw_value in scope.get("headers", ()):
+            if raw_name.lower() == b"authorization":
+                authorization = raw_value.decode("latin-1")
+                break
+
+        if authorization is None or not secrets.compare_digest(authorization, self.expected):
+            await _unauthorized_response()(scope, receive, send)
+            return
+
+        await self.app(scope, receive, send)
+
+
 async def _unexpected_error(request: Request, error: Exception) -> JSONResponse:
     _LOG.exception("Unhandled SynapseCTRL HTTP error", exc_info=error)
     payload = {
@@ -104,10 +161,12 @@ class HttpApi:
         self,
         service: SynapseService,
         *,
+        auth_enabled: bool = False,
         event_heartbeat: float = SSE_HEARTBEAT_SECONDS,
         event_queue_size: int = SSE_QUEUE_SIZE,
     ) -> None:
         self.service = service
+        self.auth_enabled = bool(auth_enabled)
         self.event_heartbeat = _positive_seconds(
             event_heartbeat,
             "event heartbeat",
@@ -132,6 +191,7 @@ class HttpApi:
                     "version": __version__,
                     "transport": "http",
                     "apiVersion": HTTP_API_VERSION,
+                    "authentication": "bearer" if self.auth_enabled else "none",
                     "endpoints": {
                         "status": "/v1/status",
                         "state": "/v1/state",
@@ -267,11 +327,22 @@ class HttpApi:
         )
 
 
-def create_app(service: SynapseService | None = None, **service_options: Any) -> Starlette:
+def create_app(
+    service: SynapseService | None = None,
+    *,
+    token: str | None = None,
+    **service_options: Any,
+) -> Starlette:
     """Create the ASGI app. A supplied service is useful for embedding and tests."""
+    if token is not None and (not token or any(character.isspace() for character in token)):
+        raise SynapseError(
+            "invalid_argument",
+            "HTTP bearer token must be nonempty and contain no whitespace.",
+        )
+
     owned_service = service is None
     service = service or SynapseService(**service_options)
-    api = HttpApi(service)
+    api = HttpApi(service, auth_enabled=token is not None)
 
     @asynccontextmanager
     async def lifespan(app: Starlette):
@@ -302,6 +373,9 @@ def create_app(service: SynapseService | None = None, **service_options: Any) ->
         lifespan=lifespan,
         exception_handlers={Exception: _unexpected_error},
     )
+    if token is not None:
+        app.add_middleware(BearerAuthMiddleware, token=token)
     app.state.synapse_service = service
     app.state.synapse_api = api
+    app.state.auth_enabled = token is not None
     return app
