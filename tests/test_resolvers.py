@@ -6,7 +6,7 @@ from contextlib import redirect_stderr, redirect_stdout
 import io
 import json
 import unittest
-from unittest.mock import Mock, patch
+from unittest.mock import MagicMock, Mock, patch
 
 from synapsectrl.bridge import StdioBridge
 from synapsectrl.cli import main as cli_main
@@ -100,7 +100,7 @@ class ResolverTests(unittest.IsolatedAsyncioTestCase):
         self.assertIn("/v1/devices/{device}/profiles/{profile}", paths)
 
     def test_cli_resolve_returns_full_objects(self):
-        client_factory = Mock()
+        client_factory = MagicMock()
         client = client_factory.return_value.__enter__.return_value
         device_model = Mock()
         device_model.to_dict.return_value = DEVICE.to_dict()
