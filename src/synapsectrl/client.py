@@ -129,9 +129,20 @@ class SynapseClient:
         with self._lock:
             return tuple(self._read().devices)
 
+    def resolve_device(self, device: str) -> Device:
+        """Resolve a device ID or unambiguous name to its current Device snapshot."""
+        with self._lock:
+            return _resolve(self._read().devices, device, "device")
+
     def list_profiles(self, device: str) -> tuple[Profile, ...]:
         with self._lock:
             return _resolve(self._read().devices, device, "device").profiles
+
+    def resolve_profile(self, device: str, profile: str) -> Profile:
+        """Resolve a profile ID or unambiguous name within a selected device."""
+        with self._lock:
+            selected = _resolve(self._read().devices, device, "device")
+            return _resolve(selected.profiles, profile, "profile")
 
     def switch_profile(self, device: str, profile: str, *, timeout: float = 5.0, verify: bool = True) -> SwitchResult:
         """Send once, optionally verify. A timeout never implies a successful switch.

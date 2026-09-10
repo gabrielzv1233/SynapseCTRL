@@ -8,10 +8,13 @@ Use the Python SDK when your application is already Python or when you want a pe
 from synapsectrl import SynapseClient
 
 with SynapseClient() as client:
-    for device in client.list_devices():
-        print(device.id, device.name)
+    device = client.resolve_device("Naga")
+    profile = client.resolve_profile(device.id, "Siege")
 
-    result = client.switch_profile("Naga", "Siege")
+    print(device.name, device.id)
+    print(profile.name, profile.id)
+
+    result = client.switch_profile(device.id, profile.id)
     print(result.status, result.verified)
 ```
 
@@ -20,9 +23,24 @@ with SynapseClient() as client:
 ```python
 client.status()
 client.list_devices()
+client.resolve_device(device)
 client.list_profiles(device)
+client.resolve_profile(device, profile)
 client.switch_profile(device, profile, timeout=5.0, verify=True)
 client.diagnostics()
+```
+
+`resolve_device()` and `resolve_profile()` accept the same selectors as the rest of SynapseCTRL and return the normal `Device` or `Profile` object. This makes name-to-ID and ID-to-name lookup explicit without maintaining a separate mapping API:
+
+```python
+device = client.resolve_device("Razer Naga V2 Hyperspeed")
+print(device.id)
+
+same_device = client.resolve_device(device.id)
+print(same_device.name)
+
+profile = client.resolve_profile(device.id, "Siege")
+print(profile.id)
 ```
 
 ## Prefer IDs for automation
@@ -52,20 +70,24 @@ Public models expose Python attributes and `.to_dict()` for serialization:
 devices = [device.to_dict() for device in client.list_devices()]
 ```
 
+Resolved objects use the same models:
+
+```python
+resolved = client.resolve_profile("Naga", "Siege").to_dict()
+```
+
 This is the recommended path when building your own local HTTP, IPC, or plugin service around SynapseCTRL.
 
 ## Persistent services
 
-For a high-frequency integration, keep a `SynapseClient` alive inside your own service:
+For a high-frequency integration, use `SynapseService`, which exposes the same resolver operations while keeping the persistent client/state watcher architecture used by bridge and HTTP modes:
 
-```text
-HTTP / IPC / plugin request
-        ↓
-your service
-        ↓
-SynapseClient
-        ↓
-Razer Synapse
+```python
+from synapsectrl import SynapseService
+
+with SynapseService() as service:
+    device = service.resolve_device("Naga")
+    profile = service.resolve_profile(device.id, "Siege")
 ```
 
 Do not expose the underlying Electron inspector to other machines. Keep that bound to loopback and expose only your own authenticated application-level interface.
@@ -79,7 +101,7 @@ from synapsectrl import SynapseClient, SynapseError
 
 try:
     with SynapseClient() as client:
-        client.switch_profile("Naga", "Siege")
+        client.resolve_profile("Naga", "Siege")
 except SynapseError as error:
     print(error.code)
     print(error.details)

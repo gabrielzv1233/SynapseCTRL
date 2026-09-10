@@ -17,10 +17,22 @@ with SynapseClient(host="127.0.0.1", port=9229, timeout=8.0) as client:
 | Method | Return value | Behavior |
 | --- | --- | --- |
 | `list_devices()` | `tuple[Device, ...]` | Discover devices, profiles, active state, and controllability |
+| `resolve_device(device)` | `Device` | Resolve a device ID or unambiguous name and return its current full snapshot |
 | `list_profiles(device)` | `tuple[Profile, ...]` | Resolve one device and return its software profiles |
+| `resolve_profile(device, profile)` | `Profile` | Resolve a profile ID or unambiguous name within one selected device |
 | `switch_profile(device, profile, *, timeout=5.0, verify=True)` | `SwitchResult` | Resolve, send both Synapse switch messages, and optionally verify |
 | `status()` | `Status` | Summarize health, returning unavailable state for expected connection/compatibility failures |
 | `diagnostics()` | `dict` | Include status, bootstrap inspection, renderer and storage evidence, and device diagnostics |
+
+`resolve_device()` and `resolve_profile()` expose the same selector logic used internally by `list_profiles()` and `switch_profile()`. Because they return normal model objects rather than only a string, one operation supports both name-to-ID and ID-to-name lookup while also returning current metadata:
+
+```python
+device = client.resolve_device("Naga")
+print(device.name, device.id)
+
+profile = client.resolve_profile(device.id, "Siege")
+print(profile.name, profile.id)
+```
 
 Discovery runs against current state; applications should refresh after Synapse or device changes. Persist IDs rather than renderer names or internal routing. Reconnecting probes the available capabilities again.
 
@@ -31,6 +43,10 @@ Selectors resolve in this order:
 3. A unique case-insensitive substring of the name.
 
 No match raises `device_not_found` or `profile_not_found`. Multiple matches at the selected precedence raise `ambiguous_device` or `ambiguous_profile` with candidate information. An empty selector is invalid. Profile selection only searches the chosen device.
+
+## Persistent service
+
+`SynapseService` exposes the same `resolve_device(device)` and `resolve_profile(device, profile)` operations through its persistent client. Long-lived transports such as the stdio bridge and HTTP server use this service layer so they share the SDK's exact selector behavior instead of implementing separate lookup rules.
 
 ## Models
 
@@ -139,7 +155,18 @@ The CLI also emits `io_error` for report-file failures and `interrupted` for Ctr
 
 ## CLI JSON contract
 
-`synapsectrl ... --json` emits exactly one JSON object on stdout, without a progress banner. Successful discovery or operation outcomes use `data`:
+`synapsectrl ... --json` emits exactly one JSON object on stdout, without a progress banner. Successful discovery, resolution, or operation outcomes use `data`.
+
+Resolver examples:
+
+```powershell
+SynapseCTRL resolve device "Naga" --json
+SynapseCTRL resolve profile "Naga" "Siege" --json
+```
+
+A device resolver returns one full device object in `data`; a profile resolver returns one full profile object. This is distinct from `devices` and `profiles`, which return arrays.
+
+A switch result uses:
 
 ```json
 {

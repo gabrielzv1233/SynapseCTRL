@@ -12,11 +12,36 @@ If installed from PyPI or as an uv tool, run `SynapseCTRL` directly. From a sour
 SynapseCTRL status
 SynapseCTRL devices
 SynapseCTRL profiles "Naga"
+SynapseCTRL resolve device "Naga"
+SynapseCTRL resolve profile "Naga" "Siege"
 SynapseCTRL switch "Naga" "Siege"
 SynapseCTRL doctor
 ```
 
 Use IDs reported by discovery for unattended automation.
+
+## Resolve names and IDs
+
+Resolve a device selector to the current full device object:
+
+```powershell
+SynapseCTRL resolve device "Naga"
+```
+
+Resolve a profile within a selected device:
+
+```powershell
+SynapseCTRL resolve profile "Naga" "Siege"
+```
+
+Both selectors may also be stable IDs. Human-readable output prints the resolved name and ID; `--json` returns the full `Device` or `Profile` representation:
+
+```powershell
+SynapseCTRL resolve device "DEVICE_ID" --json
+SynapseCTRL resolve profile "DEVICE_ID" "PROFILE_GUID" --json
+```
+
+This provides explicit name ↔ ID lookup while preserving the same exact-ID, exact-name, and unambiguous-substring selection rules used by `profiles` and `switch`.
 
 ## Persistent bridge
 
@@ -107,6 +132,7 @@ Every normal one-shot command accepts `--json`:
 ```powershell
 SynapseCTRL devices --json
 SynapseCTRL profiles "Naga" --json
+SynapseCTRL resolve profile "Naga" "Siege" --json
 SynapseCTRL switch "Naga" "Siege" --json
 ```
 

@@ -52,13 +52,18 @@ uv add synapsectrl
 ```powershell
 SynapseCTRL devices
 SynapseCTRL profiles "Naga"
+SynapseCTRL resolve device "Naga"
+SynapseCTRL resolve profile "Naga" "Siege"
 SynapseCTRL switch "Naga" "Siege"
 ```
+
+The resolver commands accept either names or stable IDs and return the resolved object, making name ↔ ID lookup explicit for scripts and integrations.
 
 For other programs, every one-shot command also supports machine-readable JSON:
 
 ```powershell
 SynapseCTRL devices --json
+SynapseCTRL resolve profile "Naga" "Siege" --json
 ```
 
 Python applications can use `SynapseClient` directly instead of spawning the CLI.
@@ -118,11 +123,12 @@ It uses Starlette + Uvicorn and reuses the same persistent `SynapseService` core
 from synapsectrl import SynapseClient
 
 with SynapseClient() as synapse:
-    devices = synapse.list_devices()
-    for device in devices:
-        print(device.name, device.active_profile_id)
+    device = synapse.resolve_device("Naga")
+    profile = synapse.resolve_profile(device.id, "Siege")
+    print(device.name, device.id)
+    print(profile.name, profile.id)
 
-    synapse.switch_profile("Naga", "Siege")
+    synapse.switch_profile(device.id, profile.id)
 ```
 
 Use stable device IDs and profile GUIDs for unattended automation. Human-readable names are convenience selectors.

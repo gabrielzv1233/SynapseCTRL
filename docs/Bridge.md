@@ -124,27 +124,58 @@ This does not force a Synapse read. It returns the most recently cached watcher 
 {"id":4,"method":"devices.list"}
 ```
 
-### List profiles
+### Resolve a device
+
+`device` and `deviceId` accept either a stable device ID or an unambiguous name selector.
 
 ```json
 {
   "id":5,
+  "method":"device.resolve",
+  "params":{"device":"Naga"}
+}
+```
+
+The result is the normal full device object, so callers can use the same operation for name-to-ID or ID-to-name lookup.
+
+### List profiles
+
+```json
+{
+  "id":6,
   "method":"profiles.list",
   "params":{"deviceId":"DEVICE_ID"}
 }
 ```
 
+### Resolve a profile
+
+`profile` and `profileId` accept either a profile GUID or an unambiguous profile name within the selected device.
+
+```json
+{
+  "id":7,
+  "method":"profile.resolve",
+  "params":{
+    "device":"Naga",
+    "profile":"Siege"
+  }
+}
+```
+
+The result is the normal full profile object.
+
 ### Get full status
 
 ```json
-{"id":6,"method":"status.get"}
+{"id":8,"method":"status.get"}
 ```
 
 ### Activate a profile
 
 ```json
 {
-  "id":7,
+  "id":9,
   "method":"profile.activate",
   "params":{
     "deviceId":"DEVICE_ID",
@@ -158,7 +189,7 @@ This does not force a Synapse read. It returns the most recently cached watcher 
 ### Shut down
 
 ```json
-{"id":8,"method":"shutdown"}
+{"id":10,"method":"shutdown"}
 ```
 
 The bridge responds before exiting:
@@ -166,7 +197,7 @@ The bridge responds before exiting:
 ```json
 {
   "protocolVersion":"1",
-  "id":8,
+  "id":10,
   "result":{"shuttingDown":true}
 }
 ```

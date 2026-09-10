@@ -207,6 +207,15 @@ class SynapseService:
         with self._state_lock:
             return self._devices
 
+    def resolve_device(self, device: str) -> Device:
+        """Resolve a device selector through the persistent client."""
+        try:
+            return self._client.resolve_device(device)
+        except SynapseError as error:
+            if error.code in {"inspector_unreachable", "transport_lost"}:
+                self._apply_unavailable(error)
+            raise
+
     def list_profiles(self, device: str) -> tuple[Profile, ...]:
         """Read profiles using the persistent client, preserving SDK selection rules."""
         try:
@@ -216,6 +225,15 @@ class SynapseService:
                 self._apply_unavailable(error)
             raise
         return profiles
+
+    def resolve_profile(self, device: str, profile: str) -> Profile:
+        """Resolve a profile selector within a selected device."""
+        try:
+            return self._client.resolve_profile(device, profile)
+        except SynapseError as error:
+            if error.code in {"inspector_unreachable", "transport_lost"}:
+                self._apply_unavailable(error)
+            raise
 
     def status(self) -> Status:
         """Return the full SDK status report using the persistent client."""

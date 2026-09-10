@@ -93,11 +93,24 @@ class StdioBridge:
                 result = [device.to_dict() for device in self.service.refresh()]
             elif method == "devices.list":
                 result = [device.to_dict() for device in self.service.list_devices(refresh=True)]
+            elif method == "device.resolve":
+                device = params.get("deviceId", params.get("device"))
+                if not isinstance(device, str) or not device.strip():
+                    raise SynapseError("invalid_argument", "device.resolve requires deviceId or device.")
+                result = self.service.resolve_device(device).to_dict()
             elif method == "profiles.list":
                 device = params.get("deviceId", params.get("device"))
                 if not isinstance(device, str) or not device.strip():
                     raise SynapseError("invalid_argument", "profiles.list requires deviceId.")
                 result = [profile.to_dict() for profile in self.service.list_profiles(device)]
+            elif method == "profile.resolve":
+                device = params.get("deviceId", params.get("device"))
+                profile = params.get("profileId", params.get("profile"))
+                if not isinstance(device, str) or not device.strip():
+                    raise SynapseError("invalid_argument", "profile.resolve requires deviceId or device.")
+                if not isinstance(profile, str) or not profile.strip():
+                    raise SynapseError("invalid_argument", "profile.resolve requires profileId or profile.")
+                result = self.service.resolve_profile(device, profile).to_dict()
             elif method == "status.get":
                 result = self.service.status().to_dict()
             elif method == "profile.activate":
