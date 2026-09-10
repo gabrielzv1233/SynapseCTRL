@@ -294,6 +294,22 @@ GET /v1/devices
 
 Returns discovered devices including profile lists and `activeProfileId`.
 
+### Resolve a device
+
+```http
+GET /v1/devices/{device}
+```
+
+`{device}` may be a stable device ID or an unambiguous name selector. The response is the normal full device object, so the same endpoint provides name-to-ID and ID-to-name lookup.
+
+URL-encode the path segment when necessary.
+
+Example:
+
+```powershell
+curl.exe "http://127.0.0.1:8765/v1/devices/Naga"
+```
+
 ### List one device's profiles
 
 ```http
@@ -302,12 +318,24 @@ GET /v1/devices/{device}/profiles
 
 `{device}` may be a stable device ID or an unambiguous name selector. Stable IDs are recommended for integrations.
 
-URL-encode the path segment when necessary.
-
 Example with curl:
 
 ```powershell
 curl.exe "http://127.0.0.1:8765/v1/devices/DEVICE_ID/profiles"
+```
+
+### Resolve a profile
+
+```http
+GET /v1/devices/{device}/profiles/{profile}
+```
+
+`{device}` and `{profile}` may each be a stable ID or an unambiguous name selector. The response is the normal full profile object.
+
+Example:
+
+```powershell
+curl.exe "http://127.0.0.1:8765/v1/devices/Naga/profiles/Siege"
 ```
 
 ### Read the active profile
