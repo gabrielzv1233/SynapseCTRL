@@ -85,6 +85,12 @@ def build_parser() -> argparse.ArgumentParser:
     command("devices", "List devices, stable IDs, and active profiles.")
     profiles = command("profiles", "List software profiles for one device.")
     profiles.add_argument("device", metavar="DEVICE", help="stable device ID or unambiguous name")
+    resolve = command("resolve", "Resolve a device or profile selector to its current object.")
+    resolve.add_argument("kind", choices=("device", "profile"), metavar="KIND",
+                         help="object kind: device or profile")
+    resolve.add_argument("device", metavar="DEVICE", help="device ID or unambiguous name")
+    resolve.add_argument("profile", nargs="?", metavar="PROFILE",
+                         help="profile GUID or unambiguous name when KIND is profile")
     switch = command("switch", "Switch a device's software profile and verify active state.")
     switch.add_argument("device", metavar="DEVICE", help="stable device ID or unambiguous name")
     switch.add_argument("profile", metavar="PROFILE", help="profile GUID or unambiguous name")
@@ -185,6 +191,13 @@ def _profile_lines(profiles: list[dict[str, Any]]) -> list[str]:
         *(f"{'*' if profile.get('active') else ' '} {profile['name']} [{profile['id']}]" for profile in profiles),
         "", "* active profile",
     ]
+
+
+def _resolved_lines(kind: str, item: dict[str, Any]) -> list[str]:
+    lines = [f"{kind.title()}: {item['name']}", f"  ID: {item['id']}"]
+    if kind == "profile":
+        lines.append(f"  Active: {_yes_no(item.get('active'))}")
+    return lines
 
 
 def _switch_lines(result: dict[str, Any]) -> list[str]:
@@ -305,6 +318,17 @@ def main(argv: Sequence[str] | None = None) -> int:
             elif args.command == "profiles":
                 data = [profile.to_dict() for profile in client.list_profiles(args.device)]
                 lines = _profile_lines(data)
+                exit_code = 0
+            elif args.command == "resolve":
+                if args.kind == "device":
+                    if args.profile is not None:
+                        raise _UsageError("resolve device accepts exactly one DEVICE selector.")
+                    data = client.resolve_device(args.device).to_dict()
+                else:
+                    if args.profile is None:
+                        raise _UsageError("resolve profile requires DEVICE and PROFILE selectors.")
+                    data = client.resolve_profile(args.device, args.profile).to_dict()
+                lines = _resolved_lines(args.kind, data)
                 exit_code = 0
             elif args.command == "switch":
                 data = client.switch_profile(
