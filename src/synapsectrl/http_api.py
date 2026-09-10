@@ -209,6 +209,8 @@ class HttpApi:
                         "status": "/v1/status",
                         "state": "/v1/state",
                         "devices": "/v1/devices",
+                        "device": "/v1/devices/{device}",
+                        "profile": "/v1/devices/{device}/profiles/{profile}",
                         "refresh": "/v1/refresh",
                         "events": "/v1/events",
                     },
@@ -230,11 +232,20 @@ class HttpApi:
             lambda: [device.to_dict() for device in self.service.list_devices(refresh=True)]
         )
 
+    async def device(self, request: Request) -> JSONResponse:
+        device = request.path_params["device"]
+        return await self._run(lambda: self.service.resolve_device(device).to_dict())
+
     async def profiles(self, request: Request) -> JSONResponse:
         device = request.path_params["device"]
         return await self._run(
             lambda: [profile.to_dict() for profile in self.service.list_profiles(device)]
         )
+
+    async def profile(self, request: Request) -> JSONResponse:
+        device = request.path_params["device"]
+        profile = request.path_params["profile"]
+        return await self._run(lambda: self.service.resolve_profile(device, profile).to_dict())
 
     async def active_profile(self, request: Request) -> JSONResponse:
         device = request.path_params["device"]
@@ -370,7 +381,9 @@ def create_app(
         Route("/v1/refresh", api.refresh, methods=["POST"]),
         Route("/v1/events", api.events, methods=["GET"]),
         Route("/v1/devices", api.devices, methods=["GET"]),
+        Route("/v1/devices/{device}", api.device, methods=["GET"]),
         Route("/v1/devices/{device}/profiles", api.profiles, methods=["GET"]),
+        Route("/v1/devices/{device}/profiles/{profile}", api.profile, methods=["GET"]),
         Route("/v1/devices/{device}/active-profile", api.active_profile, methods=["GET"]),
         Route(
             "/v1/devices/{device}/profiles/{profile}/activate",
