@@ -18,8 +18,18 @@ class HookCLITests(unittest.TestCase):
 
     def test_hook_status_is_read_only_and_does_not_connect(self):
         bootstrap = {
+            "backendVersion": "0.3.1",
             "hookInstalled": True,
             "hookHealthy": True,
+            "hookCurrent": True,
+            "hookVersion": 3,
+            "expectedHookVersion": 3,
+            "hookProtocolVersion": 1,
+            "expectedHookProtocolVersion": 1,
+            "hookBuildId": "v3+123456789abc",
+            "expectedHookBuildId": "v3+123456789abc",
+            "installedByVersion": "0.3.1",
+            "installedAtUtc": "2026-09-11T18:00:00Z",
             "versionedLauncher": r"C:\Program Files\Razer\RazerAppEngine\app-4.0.1\RazerAppEngine.exe",
             "issues": [],
         }
@@ -32,6 +42,31 @@ class HookCLITests(unittest.TestCase):
         self.assertEqual(json.loads(stdout)["data"], {"action": "status", "bootstrap": bootstrap})
         self.assertEqual(stderr, "")
         client.assert_not_called()
+
+    def test_hook_status_human_output_names_backend_build_protocol_and_installer(self):
+        bootstrap = {
+            "backendVersion": "0.3.1",
+            "hookInstalled": True,
+            "hookHealthy": True,
+            "hookCurrent": True,
+            "hookVersion": 3,
+            "expectedHookVersion": 3,
+            "hookProtocolVersion": 1,
+            "expectedHookProtocolVersion": 1,
+            "hookBuildId": "v3+123456789abc",
+            "expectedHookBuildId": "v3+123456789abc",
+            "installedByVersion": "0.3.1",
+            "installedAtUtc": "2026-09-11T18:00:00Z",
+            "issues": [],
+        }
+        with patch("synapsectrl.cli.inspect_bootstrap", return_value=bootstrap):
+            code, stdout, stderr = self.run_cli("hook", "status")
+        self.assertEqual(code, 0)
+        self.assertIn("Backend: SynapseCTRL 0.3.1", stdout)
+        self.assertIn("Hook build: v3+123456789abc (current)", stdout)
+        self.assertIn("Hook protocol: v1", stdout)
+        self.assertIn("Installed by: SynapseCTRL 0.3.1", stdout)
+        self.assertEqual(stderr, "")
 
     def test_hook_install_uses_packaged_installer_without_connecting(self):
         result = {
