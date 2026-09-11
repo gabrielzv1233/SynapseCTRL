@@ -149,9 +149,30 @@ def _status_lines(status: dict[str, Any]) -> list[str]:
         f"  Devices: {status.get('deviceCount', 0)} ({status.get('controllableDeviceCount', 0)} controllable)",
     ]
     versions = status.get("versions") or {}
+    backend = versions.get("synapseCtrl")
+    if backend:
+        lines.append(f"  Backend: SynapseCTRL {backend}")
+    hook_build = versions.get("hookBuild")
+    hook_version = versions.get("hook")
+    expected_build = versions.get("hookExpectedBuild")
+    expected_version = versions.get("hookExpected")
+    if hook_build or hook_version:
+        installed = hook_build or f"v{hook_version}"
+        expected = expected_build or (f"v{expected_version}" if expected_version else None)
+        suffix = " (current)" if expected and installed == expected else f" (expected {expected})" if expected else ""
+        lines.append(f"  Hook: {installed}{suffix}")
+    elif expected_build or expected_version:
+        expected = expected_build or f"v{expected_version}"
+        lines.append(f"  Hook: not installed (expected {expected})")
+    hook_protocol = versions.get("hookProtocol")
+    expected_protocol = versions.get("hookProtocolExpected")
+    if hook_protocol or expected_protocol:
+        current = hook_protocol or "missing"
+        suffix = f" (expected v{expected_protocol})" if expected_protocol and current != expected_protocol else ""
+        lines.append(f"  Hook protocol: v{current}{suffix}" if current != "missing" else f"  Hook protocol: missing (expected v{expected_protocol})")
     runtime_versions = [(key, versions[key]) for key in ("appEngine", "electron", "chrome", "node") if key in versions]
     if runtime_versions:
-        lines.append("  Versions: " + ", ".join(f"{key} {value}" for key, value in runtime_versions))
+        lines.append("  Runtime versions: " + ", ".join(f"{key} {value}" for key, value in runtime_versions))
     issues = status.get("issues") or []
     if issues:
         lines.extend(["", "Issues:", *(f"  - {issue}" for issue in issues)])
@@ -220,6 +241,36 @@ def _switch_lines(result: dict[str, Any]) -> list[str]:
     return lines
 
 
+def _hook_metadata_lines(bootstrap: dict[str, Any]) -> list[str]:
+    lines: list[str] = []
+    backend = bootstrap.get("backendVersion")
+    if backend:
+        lines.append(f"  Backend: SynapseCTRL {backend}")
+    build = bootstrap.get("hookBuildId")
+    version = bootstrap.get("hookVersion")
+    expected_build = bootstrap.get("expectedHookBuildId")
+    expected_version = bootstrap.get("expectedHookVersion")
+    if build or version is not None:
+        installed = build or f"v{version}"
+        expected = expected_build or (f"v{expected_version}" if expected_version is not None else None)
+        suffix = " (current)" if bootstrap.get("hookCurrent") else f" (expected {expected})" if expected else ""
+        lines.append(f"  Hook build: {installed}{suffix}")
+    elif expected_build or expected_version is not None:
+        expected = expected_build or f"v{expected_version}"
+        lines.append(f"  Hook build: not installed (expected {expected})")
+    protocol = bootstrap.get("hookProtocolVersion")
+    expected_protocol = bootstrap.get("expectedHookProtocolVersion")
+    if protocol is not None or expected_protocol is not None:
+        value = f"v{protocol}" if protocol is not None else "missing"
+        suffix = "" if protocol == expected_protocol else f" (expected v{expected_protocol})"
+        lines.append(f"  Hook protocol: {value}{suffix}")
+    if bootstrap.get("installedByVersion"):
+        lines.append(f"  Installed by: SynapseCTRL {bootstrap['installedByVersion']}")
+    if bootstrap.get("installedAtUtc"):
+        lines.append(f"  Installed at: {bootstrap['installedAtUtc']}")
+    return lines
+
+
 def _doctor_lines(report: dict[str, Any], path: Path | None) -> list[str]:
     status = report.get("status") or {}
     lines = _status_lines(status)
@@ -231,6 +282,7 @@ def _doctor_lines(report: dict[str, Any], path: Path | None) -> list[str]:
         else:
             state = "healthy" if bootstrap.get("hookHealthy") else "needs repair" if bootstrap.get("hookInstalled") else "not installed"
             lines.append(f"  Launch hook: {state}")
+            lines.extend(_hook_metadata_lines(bootstrap))
             if bootstrap.get("versionedLauncher"):
                 lines.append(f"  App Engine: {bootstrap['versionedLauncher']}")
         for issue in bootstrap.get("issues") or []:
@@ -259,6 +311,7 @@ def _hook_lines(data: dict[str, Any]) -> list[str]:
         state = "healthy" if bootstrap.get("hookHealthy") else "needs repair" if bootstrap.get("hookInstalled") else "not installed"
         lines = [f"SynapseCTRL launch hook: {state}."]
 
+    lines.extend(_hook_metadata_lines(bootstrap))
     if bootstrap.get("versionedLauncher"):
         lines.append(f"  App Engine: {bootstrap['versionedLauncher']}")
     for issue in bootstrap.get("issues") or []:
