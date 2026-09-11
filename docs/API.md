@@ -113,11 +113,26 @@ The SDK verifies Synapse's exposed active state, not physical hardware behavior.
 | `electron_available` | `electronAvailable` | Electron APIs required by the integration are available |
 | `device_count` | `deviceCount` | Number of discovered devices |
 | `controllable_device_count` | `controllableDeviceCount` | Number currently safe to switch |
-| `versions` | `versions` | Observed runtime versions |
+| `versions` | `versions` | Synapse runtime versions plus SynapseCTRL backend and managed hook metadata |
 | `issues` | `issues` | Current problems |
 | `repair` | `repair` | Actionable next steps |
 
-`status()` returns an unavailable result for expected inspector/compatibility problems so callers can display repair guidance without parsing exceptions. Discovery and switching raise structured errors when their prerequisites fail.
+`versions` retains runtime entries such as `electron`, `chrome`, and `node`, and also exposes the local integration versions when available:
+
+| Key | Meaning |
+| --- | --- |
+| `synapseCtrl` | Installed SynapseCTRL backend/package version |
+| `hook` | Installed numeric hook revision |
+| `hookExpected` | Hook revision expected by this backend |
+| `hookProtocol` | Installed hook protocol revision |
+| `hookProtocolExpected` | Protocol revision expected by this backend |
+| `hookBuild` | Installed exact build ID, such as `v3+1a2b3c4d5e6f` |
+| `hookExpectedBuild` | Exact hook build packaged with this backend |
+| `hookInstalledBy` | SynapseCTRL version that last installed/repaired the managed hook |
+
+The build ID incorporates a SHA-256 fingerprint of the packaged hook implementation, so it changes automatically when that hook code changes even when the numeric protocol stays compatible.
+
+`status()` returns an unavailable result for expected inspector/compatibility problems so callers can display repair guidance without parsing exceptions. An otherwise live Synapse session can report `degraded` when the persistent launch hook is stale or mismatched, because the next normal Synapse launch would not be using the hook build expected by the current backend. Discovery and switching raise structured errors when their prerequisites fail.
 
 ## Errors
 
@@ -209,7 +224,7 @@ A `SwitchResult` with `status: "timeout"` or `status: "failed"` remains in `data
 
 The envelope version describes the normal public schema. Diagnostic payloads contain private Synapse evidence and may grow or change with Synapse releases. Raw renderer names, channels, and storage keys are diagnostic output rather than normal API inputs.
 
-The diagnostic report contains `status`, `bootstrap`, `capabilities`, `renderers`, `rendererCount`, `storageKeys`, `devices`, `deviceDetails`, and `warnings`. `bootstrap` reports whether the filtered automatic launch hook is installed and healthy, the selected versioned launcher, issues, and repair steps. `renderers` omits full storage values. Inspect bootstrap health separately from current runtime health: an already-running inspector may be healthy even if automatic launch needs repair.
+The diagnostic report contains `status`, `bootstrap`, `capabilities`, `renderers`, `rendererCount`, `storageKeys`, `devices`, `deviceDetails`, and `warnings`. `bootstrap` reports whether the filtered automatic launch hook is installed and healthy, the installed and expected hook revisions/protocols/build fingerprints, the SynapseCTRL version that installed it, the install timestamp, the selected versioned launcher, issues, and repair steps. `renderers` omits full storage values. Inspect bootstrap health separately from current runtime health: an already-running inspector may work while automatic launch is stale and requires repair.
 
 `doctor --out FILE` atomically writes the same UTF-8 JSON envelope, creating parent directories as needed. A successful write replaces an existing report at that path. Report-file failures return `io_error` without claiming that the report was saved.
 
@@ -217,4 +232,4 @@ The diagnostic report contains `status`, `bootstrap`, `capabilities`, `renderers
 
 The SDK connects locally to the inspector; it does not start a network service or expose evaluation primitives. The inspector itself is a powerful code-execution interface inside Synapse and must remain bound to loopback. Keep the host restricted and review diagnostic metadata before sharing it.
 
-The [automatic-launch installer](../Install-SynapseInspectHook.ps1) configures normal Synapse startup. The [supplied diagnostics](../astra/tools/README.md) are the investigation path when a Synapse update changes internal behavior. The original controller and observed handoff values provide regression evidence rather than compatibility guarantees for every device.
+Use the [managed hook setup](Setup.md) for normal automatic-launch installation and repair. The low-level native hook script remains in the repository for installer development. The [supplied diagnostics](../astra/tools/README.md) are the investigation path when a Synapse update changes internal behavior. The original controller and observed handoff values provide regression evidence rather than compatibility guarantees for every device.
