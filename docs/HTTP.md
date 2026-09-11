@@ -214,6 +214,29 @@ GET /v1/status
 
 Equivalent to the SDK status operation. A returned status can report `ready`, `degraded`, or `unavailable`.
 
+The `versions` object also exposes the SynapseCTRL backend and managed launch-hook versions, for example:
+
+```json
+{
+  "apiVersion": "1",
+  "data": {
+    "state": "ready",
+    "versions": {
+      "synapseCtrl": "0.3.1",
+      "hook": "3",
+      "hookExpected": "3",
+      "hookProtocol": "1",
+      "hookProtocolExpected": "1",
+      "hookBuild": "v3+1a2b3c4d5e6f",
+      "hookExpectedBuild": "v3+1a2b3c4d5e6f",
+      "hookInstalledBy": "0.3.1"
+    }
+  }
+}
+```
+
+Runtime entries such as `electron`, `chrome`, and `node` can appear in the same object. The exact hook build suffix is derived from the packaged hook SHA-256 fingerprint and changes automatically when the hook implementation changes. An installed hook that is stale or mismatched contributes health issues and can make status `degraded` even while the current Synapse process is reachable.
+
 ### Cached persistent state
 
 ```http
@@ -277,140 +300,3 @@ curl.exe -N `
 ```
 
 The stream remains open until the client disconnects or the server stops. Each client receives its own bounded event queue. If a client falls far enough behind to fill that queue, older queued events are discarded in favor of newer state changes; clients should treat the stream as live state notification rather than a durable event log.
-
-### Force a refresh
-
-```http
-POST /v1/refresh
-```
-
-Forces an immediate device/state refresh and returns the discovered devices.
-
-### List devices
-
-```http
-GET /v1/devices
-```
-
-Returns discovered devices including profile lists and `activeProfileId`.
-
-### Resolve a device
-
-```http
-GET /v1/devices/{device}
-```
-
-`{device}` may be a stable device ID or an unambiguous name selector. The response is the normal full device object, so the same endpoint provides name-to-ID and ID-to-name lookup.
-
-URL-encode the path segment when necessary.
-
-Example:
-
-```powershell
-curl.exe "http://127.0.0.1:8765/v1/devices/Naga"
-```
-
-### List one device's profiles
-
-```http
-GET /v1/devices/{device}/profiles
-```
-
-`{device}` may be a stable device ID or an unambiguous name selector. Stable IDs are recommended for integrations.
-
-Example with curl:
-
-```powershell
-curl.exe "http://127.0.0.1:8765/v1/devices/DEVICE_ID/profiles"
-```
-
-### Resolve a profile
-
-```http
-GET /v1/devices/{device}/profiles/{profile}
-```
-
-`{device}` and `{profile}` may each be a stable ID or an unambiguous name selector. The response is the normal full profile object.
-
-Example:
-
-```powershell
-curl.exe "http://127.0.0.1:8765/v1/devices/Naga/profiles/Siege"
-```
-
-### Read the active profile
-
-```http
-GET /v1/devices/{device}/active-profile
-```
-
-Returns the active profile object or `null` if no active software profile can be identified.
-
-### Activate a profile
-
-```http
-POST /v1/devices/{device}/profiles/{profile}/activate
-Content-Type: application/json
-```
-
-`{profile}` may be a stable profile GUID or an unambiguous profile name. Stable GUIDs are recommended.
-
-The JSON body is optional. Defaults are:
-
-```json
-{
-  "timeout": 5,
-  "verify": true
-}
-```
-
-Example:
-
-```powershell
-curl.exe -X POST `
-  -H "Content-Type: application/json" `
-  -d '{"timeout":5,"verify":true}' `
-  "http://127.0.0.1:8765/v1/devices/DEVICE_ID/profiles/PROFILE_GUID/activate"
-```
-
-Example response:
-
-```json
-{
-  "apiVersion": "1",
-  "data": {
-    "status": "verified",
-    "deviceId": "DEVICE_ID",
-    "profileId": "PROFILE_GUID",
-    "previousProfileId": "OLD_PROFILE_GUID",
-    "sent": true,
-    "verified": true,
-    "elapsedMs": 142,
-    "error": null
-  }
-}
-```
-
-## Why HTTP is separate from bridge mode
-
-Both transports use the same service core:
-
-```text
-                 +--> NDJSON stdio bridge
-SynapseService --+
-                 +--> Starlette REST + SSE API
-```
-
-Use the stdio bridge when one local application owns a SynapseCTRL child process, such as SynapseDeck.
-
-Use HTTP when multiple tools, scripts, languages, or machines on a trusted network need a conventional REST interface or a shared event stream.
-
-The HTTP server is not required for SynapseDeck and does not need to run separately for bridge users.
-
-## Events vs polling
-
-Clients that only need occasional state can use ordinary REST requests such as `/v1/state` or `/v1/devices`.
-
-Clients that need immediate profile/device/Synapse state changes should prefer `/v1/events` and use the initial `service.snapshot` to establish current state before processing subsequent events.
-
-The SSE endpoint intentionally does not provide durable replay. If a client disconnects, reconnect and use the new `service.snapshot` as the source of truth before handling later change events.
