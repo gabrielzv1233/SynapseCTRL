@@ -141,11 +141,7 @@ The result is the normal full device object, so callers can use the same operati
 ### List profiles
 
 ```json
-{
-  "id":6,
-  "method":"profiles.list",
-  "params":{"deviceId":"DEVICE_ID"}
-}
+{"id":6,"method":"profiles.list","params":{"deviceId":"DEVICE_ID"}}
 ```
 
 ### Resolve a profile
@@ -170,6 +166,30 @@ The result is the normal full profile object.
 ```json
 {"id":8,"method":"status.get"}
 ```
+
+`status.get` returns the normal `Status` model. Its `versions` object includes the installed SynapseCTRL backend plus managed hook metadata when available:
+
+```json
+{
+  "protocolVersion": "1",
+  "id": 8,
+  "result": {
+    "state": "ready",
+    "versions": {
+      "synapseCtrl": "0.3.1",
+      "hook": "3",
+      "hookExpected": "3",
+      "hookProtocol": "1",
+      "hookProtocolExpected": "1",
+      "hookBuild": "v3+1a2b3c4d5e6f",
+      "hookExpectedBuild": "v3+1a2b3c4d5e6f",
+      "hookInstalledBy": "0.3.1"
+    }
+  }
+}
+```
+
+The build suffix comes from the packaged hook SHA-256 fingerprint, so integrations can tell the difference between two hook implementations even when they share a compatible numeric protocol. A stale/mismatched persistent hook can make status `degraded` while the currently-running Synapse instance is still reachable.
 
 ### Activate a profile
 
