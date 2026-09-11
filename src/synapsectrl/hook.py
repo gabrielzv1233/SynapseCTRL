@@ -34,6 +34,21 @@ def _powershell_executable() -> str:
     return "powershell.exe"
 
 
+def _installer_resources():
+    """Resolve wheel resources with source-tree fallbacks for editable use."""
+    package = files("synapsectrl")
+    wrapper = package.joinpath("Install-SynapseHookMetadata.ps1")
+    installer = package.joinpath("Install-SynapseInspectHook.ps1")
+
+    source_package = Path(__file__).resolve().parent
+    project_root = source_package.parents[1]
+    if not wrapper.is_file():
+        wrapper = source_package / "Install-SynapseHookMetadata.ps1"
+    if not installer.is_file():
+        installer = project_root / "Install-SynapseInspectHook.ps1"
+    return wrapper, installer
+
+
 def run_hook_installer(action: str) -> dict[str, Any]:
     """Run the packaged PowerShell hook installer and return structured results."""
     if action not in {"install", "repair", "uninstall"}:
@@ -44,9 +59,7 @@ def run_hook_installer(action: str) -> dict[str, Any]:
             "The Synapse launch hook can only be installed or removed on Windows.",
         )
 
-    package = files("synapsectrl")
-    wrapper = package.joinpath("Install-SynapseHookMetadata.ps1")
-    installer = package.joinpath("Install-SynapseInspectHook.ps1")
+    wrapper, installer = _installer_resources()
     if not wrapper.is_file() or not installer.is_file():
         raise SynapseError(
             "installer_missing",
