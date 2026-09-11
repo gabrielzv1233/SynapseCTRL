@@ -234,8 +234,6 @@ class SynapseClient:
             if message:
                 issues.append(message)
         repair.extend(bootstrap.get("repair", []))
-        if not bootstrap.get("hookHealthy"):
-            repair.append("Run 'synapsectrl hook repair' to install the hook build expected by this SynapseCTRL backend.")
 
         devices = self._discovery.devices
         controllable = sum(d.controllable for d in devices)
