@@ -6,6 +6,7 @@ from unittest.mock import patch
 
 from synapsectrl import Profile, SynapseClient, SynapseError
 from synapsectrl.client import _resolve
+from synapsectrl.metadata import BACKEND_VERSION, HOOK_PROTOCOL_VERSION, HOOK_VERSION
 
 
 CONTAINER = "{ABCDEF12-1234-1234-1234-123456789ABC}"
@@ -150,10 +151,12 @@ class ClientTests(unittest.TestCase):
     def test_verification_reconnects_without_resending(self):
         stale, fresh = FakeInspector(), FakeInspector(snapshot("two"))
         original = stale.send_switch
+
         def lose_after_dispatch(*args):
             sent = original(*args)
             stale.lost_read = True
             return sent
+
         stale.send_switch = lose_after_dispatch
         with patch("synapsectrl.client.Inspector", side_effect=[stale, fresh]):
             with SynapseClient() as client:
@@ -180,6 +183,49 @@ class ClientTests(unittest.TestCase):
                 _resolve(profiles, query, "profile")
             self.assertEqual(error.exception.code, "ambiguous_profile")
         self.assertEqual(_resolve(profiles, "B", "profile").id, "b")
+
+    def test_status_reports_backend_and_hook_version_metadata(self):
+        inspector = FakeInspector()
+        client = self.client(inspector)
+        bootstrap = {
+            "synapseRunning": True,
+            "hookHealthy": True,
+            "hookVersion": HOOK_VERSION,
+            "expectedHookVersion": HOOK_VERSION,
+            "hookProtocolVersion": HOOK_PROTOCOL_VERSION,
+            "expectedHookProtocolVersion": HOOK_PROTOCOL_VERSION,
+            "hookBuildId": "v3+123456789abc",
+            "expectedHookBuildId": "v3+123456789abc",
+            "installedByVersion": BACKEND_VERSION,
+            "issues": [],
+            "repair": [],
+        }
+        with patch("synapsectrl.client.inspect_bootstrap", return_value=bootstrap):
+            status = client.status()
+        self.assertEqual(status.state, "ready")
+        self.assertEqual(status.versions["synapseCtrl"], BACKEND_VERSION)
+        self.assertEqual(status.versions["hook"], str(HOOK_VERSION))
+        self.assertEqual(status.versions["hookProtocol"], str(HOOK_PROTOCOL_VERSION))
+        self.assertEqual(status.versions["hookBuild"], "v3+123456789abc")
+        self.assertEqual(status.versions["hookInstalledBy"], BACKEND_VERSION)
+        self.assertEqual(status.versions["electron"], "test")
+
+    def test_newer_hook_preserves_backend_upgrade_guidance(self):
+        inspector = FakeInspector()
+        client = self.client(inspector)
+        bootstrap = {
+            "synapseRunning": True,
+            "hookHealthy": False,
+            "hookVersion": HOOK_VERSION + 1,
+            "expectedHookVersion": HOOK_VERSION,
+            "issues": [{"code": "backend_outdated", "message": "Installed hook is newer."}],
+            "repair": ["Upgrade SynapseCTRL before changing the installed hook."],
+        }
+        with patch("synapsectrl.client.inspect_bootstrap", return_value=bootstrap):
+            status = client.status()
+        self.assertEqual(status.state, "degraded")
+        self.assertIn("Upgrade SynapseCTRL before changing the installed hook.", status.repair)
+        self.assertFalse(any("hook repair" in item for item in status.repair))
 
     def test_status_after_failed_read_has_no_stale_devices(self):
         inspector = FakeInspector()
