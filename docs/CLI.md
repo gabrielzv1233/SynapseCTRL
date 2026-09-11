@@ -117,7 +117,19 @@ SynapseCTRL hook repair
 SynapseCTRL hook uninstall
 ```
 
-`install` and `repair` run the packaged `Install-SynapseInspectHook.ps1` installer and may request Windows administrator elevation. Fully exit and reopen Razer Synapse after install, repair, or uninstall.
+`install` and `repair` use the packaged managed installer and may request Windows administrator elevation. Fully exit and reopen Razer Synapse after install, repair, or uninstall.
+
+Managed hooks carry version/build metadata. Human-readable `hook status` reports the SynapseCTRL backend version, installed hook build, expected hook build, hook protocol, installer version, and install timestamp. The short build ID combines the hook revision with the first 12 characters of an exact SHA-256 fingerprint, for example:
+
+```text
+SynapseCTRL launch hook: healthy.
+  Backend: SynapseCTRL 0.3.1
+  Hook build: v3+1a2b3c4d5e6f (current)
+  Hook protocol: v1
+  Installed by: SynapseCTRL 0.3.1
+```
+
+The fingerprint is derived from the packaged hook implementation, so the build ID changes automatically when the hook code changes. The numeric hook revision and protocol are separate: implementation updates can produce a different build fingerprint without requiring a protocol break.
 
 The hook commands also support JSON:
 
@@ -125,11 +137,16 @@ The hook commands also support JSON:
 SynapseCTRL hook status --json
 ```
 
+The full metadata is returned under `data.bootstrap`, including `hookVersion`, `expectedHookVersion`, `hookProtocolVersion`, `expectedHookProtocolVersion`, `hookFingerprint`, `expectedHookFingerprint`, `hookBuildId`, `expectedHookBuildId`, `installedByVersion`, and `installedAtUtc`.
+
+A stale or mismatched hook makes `hook status` unhealthy and is surfaced by `status` and `doctor`. Use `SynapseCTRL hook repair` when the installed hook is older or does not match the build packaged with the current backend. If the installed hook is newer than the backend, upgrade SynapseCTRL instead of downgrading the hook.
+
 ## JSON mode
 
 Every normal one-shot command accepts `--json`:
 
 ```powershell
+SynapseCTRL status --json
 SynapseCTRL devices --json
 SynapseCTRL profiles "Naga" --json
 SynapseCTRL resolve profile "Naga" "Siege" --json
@@ -144,6 +161,8 @@ Successful output is exactly one JSON object on stdout:
   "data": {}
 }
 ```
+
+`status --json` includes backend and managed-hook information in `data.versions`. Integrations can inspect keys such as `synapseCtrl`, `hook`, `hookExpected`, `hookProtocol`, `hookProtocolExpected`, `hookBuild`, `hookExpectedBuild`, and `hookInstalledBy` without parsing human-readable text.
 
 Errors use:
 
@@ -262,5 +281,7 @@ Save the structured report:
 ```powershell
 SynapseCTRL doctor --out .\report.json
 ```
+
+`doctor` includes both live Synapse capability diagnostics and the managed hook/backend metadata described above.
 
 See [Troubleshooting](Troubleshooting.md) for repair flow and deeper diagnostic tools.
