@@ -11,6 +11,7 @@ from ._inspector import Inspector, positive_timeout, validate_endpoint
 from .bootstrap import inspect_bootstrap
 from .discovery import Discovery, normalize
 from .errors import SynapseError
+from .metadata import BACKEND_VERSION
 from .models import Device, Profile, Status, SwitchResult
 
 _Named = TypeVar("_Named", Device, Profile)
@@ -221,17 +222,35 @@ class SynapseClient:
         except SynapseError as error:
             available = False
             issues.append(error.message)
-            repair.extend(bootstrap.get("repair", []))
             if not bootstrap.get("synapseRunning"):
                 repair.append("Start Razer Synapse using its normal shortcut.")
             elif error.code in ("transport_lost", "inspector_unreachable"):
                 repair.append("Restart Synapse using its normal shortcut so the installed inspector hook takes effect.")
             else:
                 repair.append("Run the supplied astra/tools/probe.py and diagnostic_bundle.py to diagnose a changed Synapse integration.")
-            if not bootstrap.get("hookHealthy"):
-                repair.append("From the source checkout, run Install-SynapseInspectHook.ps1 to install or repair automatic inspector launch.")
+
+        for item in bootstrap.get("issues", []):
+            message = item.get("message") if isinstance(item, dict) else str(item)
+            if message:
+                issues.append(message)
+        repair.extend(bootstrap.get("repair", []))
+        if not bootstrap.get("hookHealthy"):
+            repair.append("Run 'synapsectrl hook repair' to install the hook build expected by this SynapseCTRL backend.")
+
         devices = self._discovery.devices
         controllable = sum(d.controllable for d in devices)
+        versions = dict(self._probe.get("versions") or {})
+        versions["synapseCtrl"] = BACKEND_VERSION
+        metadata_versions = {
+            "hook": bootstrap.get("hookVersion"),
+            "hookExpected": bootstrap.get("expectedHookVersion"),
+            "hookProtocol": bootstrap.get("hookProtocolVersion"),
+            "hookProtocolExpected": bootstrap.get("expectedHookProtocolVersion"),
+            "hookBuild": bootstrap.get("hookBuildId"),
+            "hookExpectedBuild": bootstrap.get("expectedHookBuildId"),
+            "hookInstalledBy": bootstrap.get("installedByVersion"),
+        }
+        versions.update({key: str(value) for key, value in metadata_versions.items() if value is not None})
         return Status(
             state=("ready" if not issues else "degraded") if available else "unavailable",
             synapse_running=True if available else bootstrap.get("synapseRunning"),
@@ -239,7 +258,7 @@ class SynapseClient:
             browser_process=self._probe.get("processType") == "browser",
             electron_available=bool(self._probe.get("electronAvailable")),
             device_count=len(devices), controllable_device_count=controllable,
-            versions=dict(self._probe.get("versions") or {}), issues=tuple(dict.fromkeys(issues)), repair=tuple(dict.fromkeys(repair)),
+            versions=versions, issues=tuple(dict.fromkeys(issues)), repair=tuple(dict.fromkeys(repair)),
         )
 
     def status(self) -> Status:
