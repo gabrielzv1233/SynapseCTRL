@@ -87,7 +87,7 @@ Example response:
   "id": 1,
   "result": {
     "protocolVersion": "1",
-    "synapseCtrlVersion": "0.3.0",
+    "synapseCtrlVersion": "0.3.1",
     "transport": "stdio",
     "service": {
       "state": "ready",
