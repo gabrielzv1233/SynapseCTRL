@@ -8,7 +8,7 @@ For the shortest setup path, use [Getting Started](Getting-Started.md).
 
 SynapseCTRL controls Synapse through the Razer App Engine's Electron browser process. The product needs a localhost-only Node inspector exposed by that process so it can discover renderers, read current software-profile state, and dispatch the same internal switch messages Synapse uses.
 
-Normal Synapse launches do not expose that inspector, so SynapseCTRL ships the `Install-SynapseInspectHook.ps1` installer inside the Python package and source repository.
+Normal Synapse launches do not expose that inspector, so SynapseCTRL ships a managed launch-hook installer with the Python package.
 
 ## Installing
 
@@ -26,12 +26,6 @@ uv run SynapseCTRL hook install
 
 The CLI runs the packaged PowerShell installer and requests administrator elevation because it installs a filtered Windows Image File Execution Options (IFEO) entry and a small launch shim under Program Files.
 
-The original script can still be invoked directly when debugging installer behavior:
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\Install-SynapseInspectHook.ps1 -NoPause
-```
-
 The hook targets the stable launcher:
 
 ```text
@@ -45,6 +39,30 @@ The shim locates the newest versioned App Engine executable under an `app-*` dir
 ```
 
 The inspector is intentionally loopback-only.
+
+## Hook build metadata
+
+Managed installs record enough metadata for SynapseCTRL to tell whether the persistent hook on the machine matches the backend that is currently running:
+
+- the human hook revision (`hookVersion`)
+- the hook/backend protocol revision (`hookProtocolVersion`)
+- an exact SHA-256 fingerprint of the packaged hook implementation
+- a short build ID such as `v3+1a2b3c4d5e6f`
+- the SynapseCTRL version that installed it
+- the UTC install/repair timestamp
+
+The numeric hook revision is bumped when the managed hook contract changes. The build fingerprint is derived from the packaged hook code, so `hookBuildId` changes automatically when that code changes even when the numeric protocol remains compatible.
+
+Inspect it with:
+
+```powershell
+SynapseCTRL hook status
+SynapseCTRL hook status --json
+```
+
+`status`, `doctor`, the persistent bridge `status.get` method, and HTTP `GET /v1/status` also expose backend/hook version information. A stale hook is reported as degraded and `SynapseCTRL hook repair` installs the build expected by the current backend. If an installed hook is newer than the backend, SynapseCTRL recommends upgrading the backend rather than silently downgrading the hook.
+
+The repository still contains `Install-SynapseInspectHook.ps1` as the low-level native-hook implementation and for installer development. Normal users and integrations should use the `SynapseCTRL hook ...` commands so managed version metadata is installed and validated as part of the operation.
 
 ## After installation
 
@@ -77,7 +95,7 @@ The normal repair command is:
 SynapseCTRL hook repair
 ```
 
-`repair` uses the same packaged installer as `install`; the separate command makes the intent clearer for troubleshooting and automation.
+`repair` reinstalls the managed hook and refreshes its version, protocol, fingerprint, installer-version, and timestamp metadata. This makes it the correct repair path after upgrading SynapseCTRL when the expected hook build has changed.
 
 ## Alternate inspector port
 
@@ -87,16 +105,10 @@ If you deliberately customize the hook, make sure the client and launcher agree 
 
 ## Uninstalling
 
-Remove the automatic launch hook with:
+Remove the automatic launch hook and its managed metadata with:
 
 ```powershell
 SynapseCTRL hook uninstall
-```
-
-Manual source-script equivalent:
-
-```powershell
-powershell -NoProfile -ExecutionPolicy Bypass -File .\Install-SynapseInspectHook.ps1 -Uninstall -NoPause
 ```
 
 Then fully exit and reopen Synapse.

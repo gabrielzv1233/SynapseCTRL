@@ -29,6 +29,12 @@ STATUS = Status(
     electron_available=True,
     device_count=1,
     controllable_device_count=1,
+    versions={
+        "synapseCtrl": "0.3.1",
+        "hook": "3",
+        "hookProtocol": "1",
+        "hookBuild": "v3+123456789abc",
+    },
 )
 
 
@@ -177,6 +183,15 @@ class HttpApiTests(unittest.IsolatedAsyncioTestCase):
         api = HttpApi(self.service, auth_enabled=True)
         response = await api.root(FakeRequest())
         self.assertEqual(payload(response)["data"]["authentication"], "bearer")
+
+    async def test_status_exposes_backend_and_hook_metadata(self):
+        response = await self.api.status(FakeRequest())
+        self.assertEqual(response.status_code, 200)
+        versions = payload(response)["data"]["versions"]
+        self.assertEqual(versions["synapseCtrl"], "0.3.1")
+        self.assertEqual(versions["hook"], "3")
+        self.assertEqual(versions["hookProtocol"], "1")
+        self.assertEqual(versions["hookBuild"], "v3+123456789abc")
 
     async def test_devices_and_profiles_use_public_service_methods(self):
         devices = await self.api.devices(FakeRequest())

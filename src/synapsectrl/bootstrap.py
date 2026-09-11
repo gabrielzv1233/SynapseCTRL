@@ -15,6 +15,14 @@ from typing import Any
 
 import psutil
 
+from .metadata import (
+    BACKEND_VERSION,
+    HOOK_PROTOCOL_VERSION,
+    HOOK_VERSION,
+    expected_hook_fingerprint,
+    hook_build_id,
+)
+
 try:
     import winreg
 except ImportError:  # Allows installation and offline tests on other platforms.
@@ -23,10 +31,8 @@ except ImportError:  # Allows installation and offline tests on other platforms.
 
 _IFEO = r"SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\RazerAppEngine.exe"
 _REPAIR = (
-    "Run 'synapsectrl hook install' (Windows requests administrator access), then fully exit "
-    "and reopen Synapse. From a source checkout, use 'uv run synapsectrl hook install'. "
-    "Manual fallback: powershell -NoProfile -ExecutionPolicy Bypass -File "
-    ".\\Install-SynapseInspectHook.ps1 -NoPause."
+    "Run 'synapsectrl hook repair' (Windows requests administrator access), then fully exit "
+    "and reopen Synapse. From a source checkout, use 'uv run synapsectrl hook repair'."
 )
 
 
@@ -106,14 +112,30 @@ def _newest_versioned_exe(root: Path) -> Path | None:
 
 def inspect_bootstrap() -> dict[str, Any]:
     """Return JSON-compatible hook health and actionable local repair advice."""
+    try:
+        expected_fingerprint = expected_hook_fingerprint()
+    except OSError:
+        expected_fingerprint = None
+
     result: dict[str, Any] = {
         "supported": sys.platform == "win32" and winreg is not None,
+        "backendVersion": BACKEND_VERSION,
         "synapseRunning": synapse_running(),
         "stableLauncherExists": False,
         "versionedLauncher": None,
         "hookInstalled": False,
         "hookHealthy": False,
+        "hookCurrent": False,
         "hookVersion": None,
+        "expectedHookVersion": HOOK_VERSION,
+        "hookProtocolVersion": None,
+        "expectedHookProtocolVersion": HOOK_PROTOCOL_VERSION,
+        "hookFingerprint": None,
+        "expectedHookFingerprint": expected_fingerprint,
+        "hookBuildId": None,
+        "expectedHookBuildId": hook_build_id(HOOK_VERSION, expected_fingerprint),
+        "installedByVersion": None,
+        "installedAtUtc": None,
         "useFilter": None,
         "filterFullPath": None,
         "debugger": None,
@@ -126,6 +148,13 @@ def inspect_bootstrap() -> dict[str, Any]:
         result["issues"].append({"code": code, "message": message})
         if repair and repair not in result["repair"]:
             result["repair"].append(repair)
+
+    if expected_fingerprint is None:
+        issue(
+            "hook_metadata_unavailable",
+            "SynapseCTRL cannot read its packaged hook implementation to determine the expected build.",
+            "Reinstall SynapseCTRL before repairing the launch hook.",
+        )
 
     if not result["supported"]:
         issue("unsupported_platform", "Automatic Synapse launch requires Windows.")
@@ -170,9 +199,22 @@ def inspect_bootstrap() -> dict[str, Any]:
     if own is None:
         issue("hook_missing", "The automatic inspector launch hook is not installed.", _REPAIR)
     else:
+        hook_version = own.get("HookVersion")
+        hook_protocol = own.get("HookProtocolVersion")
+        hook_fingerprint = own.get("HookFingerprint")
+        installed_by = own.get("InstalledByVersion")
+        installed_at = own.get("InstalledAtUtc")
         result.update({
             "hookInstalled": True,
-            "hookVersion": own.get("HookVersion"),
+            "hookVersion": hook_version,
+            "hookProtocolVersion": hook_protocol,
+            "hookFingerprint": hook_fingerprint,
+            "hookBuildId": hook_build_id(
+                hook_version if isinstance(hook_version, int) else None,
+                hook_fingerprint if isinstance(hook_fingerprint, str) else None,
+            ),
+            "installedByVersion": installed_by,
+            "installedAtUtc": installed_at,
             "filterFullPath": own.get("FilterFullPath"),
             "debugger": own.get("Debugger"),
         })
@@ -188,6 +230,50 @@ def inspect_bootstrap() -> dict[str, Any]:
                   "Inspect the modified SynapseCTRL IFEO filter before repairing it; the installer preserves unexpected values.")
         if not result["shimExists"]:
             issue("shim_missing", "The registered native launch shim is missing.", _REPAIR)
+
+        if not isinstance(hook_version, int):
+            issue(
+                "hook_metadata_missing",
+                "The installed hook predates managed version metadata.",
+                _REPAIR,
+            )
+        elif hook_version < HOOK_VERSION:
+            issue(
+                "hook_outdated",
+                f"Installed hook v{hook_version} is older than the v{HOOK_VERSION} build expected by SynapseCTRL {BACKEND_VERSION}.",
+                _REPAIR,
+            )
+        elif hook_version > HOOK_VERSION:
+            issue(
+                "backend_outdated",
+                f"Installed hook v{hook_version} is newer than the v{HOOK_VERSION} build expected by SynapseCTRL {BACKEND_VERSION}.",
+                "Upgrade SynapseCTRL before changing the installed hook.",
+            )
+        elif not isinstance(hook_protocol, int):
+            issue("hook_metadata_missing", "The installed hook is missing protocol-version metadata.", _REPAIR)
+        elif hook_protocol != HOOK_PROTOCOL_VERSION:
+            if hook_protocol > HOOK_PROTOCOL_VERSION:
+                repair = "Upgrade SynapseCTRL before changing the installed hook."
+            else:
+                repair = _REPAIR
+            issue(
+                "hook_protocol_mismatch",
+                f"Installed hook protocol v{hook_protocol} does not match backend protocol v{HOOK_PROTOCOL_VERSION}.",
+                repair,
+            )
+        elif not isinstance(hook_fingerprint, str) or not re.fullmatch(r"[0-9a-fA-F]{64}", hook_fingerprint):
+            issue("hook_metadata_missing", "The installed hook is missing its exact build fingerprint.", _REPAIR)
+        elif expected_fingerprint is not None and hook_fingerprint.casefold() != expected_fingerprint.casefold():
+            issue(
+                "hook_build_mismatch",
+                "The installed hook build does not match the hook code packaged with this SynapseCTRL backend.",
+                _REPAIR,
+            )
+        elif not isinstance(installed_by, str) or not installed_by.strip():
+            issue("hook_metadata_missing", "The installed hook is missing its installer/backend version metadata.", _REPAIR)
+        else:
+            result["hookCurrent"] = True
+
     result["hookHealthy"] = not result["issues"]
     if result["hookHealthy"] and result["synapseRunning"] is False:
         result["repair"].append("Open Razer Synapse normally; the installed hook enables the inspector automatically.")

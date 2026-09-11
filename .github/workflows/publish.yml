@@ -30,7 +30,9 @@ jobs:
 
       - name: Validate native hook installer
         shell: powershell
-        run: powershell -NoProfile -ExecutionPolicy Bypass -File tests/test_installer.ps1
+        run: |
+          powershell -NoProfile -ExecutionPolicy Bypass -File tests/test_installer.ps1
+          powershell -NoProfile -ExecutionPolicy Bypass -File tests/test_hook_metadata_installer.ps1
 
       - name: Check CLI entry point
         run: |
@@ -66,7 +68,7 @@ jobs:
           uv run --isolated --no-project --with "$WHEEL" synapsectrl --version
           uv run --isolated --no-project --with "$WHEEL" synapsectrl bridge --help
           uv run --isolated --no-project --with "$WHEEL" synapsectrl serve --help
-          uv run --isolated --no-project --with "$WHEEL" python -c "from importlib.resources import files; assert files('synapsectrl').joinpath('Install-SynapseInspectHook.ps1').is_file()"
+          uv run --isolated --no-project --with "$WHEEL" python -c "from importlib.resources import files; assert files('synapsectrl').joinpath('Install-SynapseInspectHook.ps1').is_file(); assert files('synapsectrl').joinpath('Install-SynapseHookMetadata.ps1').is_file()"
 
       - name: Smoke test HTTP extra modules
         shell: bash

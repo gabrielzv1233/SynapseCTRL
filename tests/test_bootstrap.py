@@ -9,6 +9,13 @@ from unittest.mock import patch
 import psutil
 
 from synapsectrl import bootstrap
+from synapsectrl.metadata import (
+    BACKEND_VERSION,
+    HOOK_PROTOCOL_VERSION,
+    HOOK_VERSION,
+    expected_hook_fingerprint,
+    hook_build_id,
+)
 
 
 class BootstrapTests(unittest.TestCase):
@@ -24,11 +31,16 @@ class BootstrapTests(unittest.TestCase):
         self.shim = self.program_files / "SynapseCTRL" / "RazerInspectShim.exe"
         self.shim.parent.mkdir()
         self.shim.touch()
+        self.fingerprint = expected_hook_fingerprint()
         self.base = {"UseFilter": 1}
         self.filters = {"SynapseCTRL": {
             "FilterFullPath": str(self.razer / "RazerAppEngine.exe"),
             "Debugger": f'"{self.shim}"',
-            "HookVersion": 2,
+            "HookVersion": HOOK_VERSION,
+            "HookProtocolVersion": HOOK_PROTOCOL_VERSION,
+            "HookFingerprint": self.fingerprint,
+            "InstalledByVersion": BACKEND_VERSION,
+            "InstalledAtUtc": "2026-09-11T18:00:00.0000000Z",
         }}
         for item in [
             patch.object(bootstrap.sys, "platform", "win32"),
@@ -53,26 +65,89 @@ class BootstrapTests(unittest.TestCase):
     def codes(self, result):
         return {issue["code"] for issue in result["issues"]}
 
-    def test_healthy_hook_chooses_numeric_newest_installed_version(self):
+    def test_healthy_hook_reports_current_backend_and_exact_build(self):
         self.make_version("9.0.0", executable=False)
         self.make_version("99.0-preview")
         result = bootstrap.inspect_bootstrap()
         self.assertTrue(result["hookHealthy"])
         self.assertTrue(result["hookInstalled"])
-        self.assertEqual(result["hookVersion"], 2)
+        self.assertTrue(result["hookCurrent"])
+        self.assertEqual(result["backendVersion"], BACKEND_VERSION)
+        self.assertEqual(result["hookVersion"], HOOK_VERSION)
+        self.assertEqual(result["expectedHookVersion"], HOOK_VERSION)
+        self.assertEqual(result["hookProtocolVersion"], HOOK_PROTOCOL_VERSION)
+        self.assertEqual(result["expectedHookProtocolVersion"], HOOK_PROTOCOL_VERSION)
+        self.assertEqual(result["hookFingerprint"], self.fingerprint)
+        self.assertEqual(result["expectedHookFingerprint"], self.fingerprint)
+        self.assertEqual(result["hookBuildId"], hook_build_id(HOOK_VERSION, self.fingerprint))
+        self.assertEqual(result["hookBuildId"], result["expectedHookBuildId"])
+        self.assertEqual(result["installedByVersion"], BACKEND_VERSION)
         self.assertIn("app-4.0.1000", result["versionedLauncher"])
         self.assertEqual(result["issues"], [])
 
-    def test_existing_known_good_hook_without_revision_is_supported(self):
+    def test_legacy_hook_without_managed_metadata_requires_repair(self):
+        own = self.filters["SynapseCTRL"]
+        for name in (
+            "HookProtocolVersion",
+            "HookFingerprint",
+            "InstalledByVersion",
+            "InstalledAtUtc",
+        ):
+            own.pop(name)
+        own["HookVersion"] = 2
+        result = bootstrap.inspect_bootstrap()
+        self.assertFalse(result["hookHealthy"])
+        self.assertFalse(result["hookCurrent"])
+        self.assertIn("hook_outdated", self.codes(result))
+        self.assertTrue(any("hook repair" in step for step in result["repair"]))
+
+    def test_missing_revision_is_managed_as_stale_metadata(self):
         del self.filters["SynapseCTRL"]["HookVersion"]
-        self.assertTrue(bootstrap.inspect_bootstrap()["hookHealthy"])
+        result = bootstrap.inspect_bootstrap()
+        self.assertFalse(result["hookHealthy"])
+        self.assertIn("hook_metadata_missing", self.codes(result))
+
+    def test_older_hook_revision_is_outdated(self):
+        self.filters["SynapseCTRL"]["HookVersion"] = HOOK_VERSION - 1
+        result = bootstrap.inspect_bootstrap()
+        self.assertFalse(result["hookHealthy"])
+        self.assertIn("hook_outdated", self.codes(result))
+        self.assertTrue(any("hook repair" in step for step in result["repair"]))
+
+    def test_newer_hook_revision_requires_backend_upgrade_not_downgrade(self):
+        self.filters["SynapseCTRL"]["HookVersion"] = HOOK_VERSION + 1
+        result = bootstrap.inspect_bootstrap()
+        self.assertFalse(result["hookHealthy"])
+        self.assertIn("backend_outdated", self.codes(result))
+        self.assertTrue(any("Upgrade SynapseCTRL" in step for step in result["repair"]))
+        self.assertFalse(any("hook repair" in step for step in result["repair"]))
+
+    def test_protocol_mismatch_is_reported_separately(self):
+        self.filters["SynapseCTRL"]["HookProtocolVersion"] = HOOK_PROTOCOL_VERSION + 1
+        result = bootstrap.inspect_bootstrap()
+        self.assertFalse(result["hookHealthy"])
+        self.assertIn("hook_protocol_mismatch", self.codes(result))
+        self.assertTrue(any("Upgrade SynapseCTRL" in step for step in result["repair"]))
+
+    def test_exact_build_fingerprint_detects_changed_hook_code(self):
+        self.filters["SynapseCTRL"]["HookFingerprint"] = "0" * 64
+        result = bootstrap.inspect_bootstrap()
+        self.assertFalse(result["hookHealthy"])
+        self.assertIn("hook_build_mismatch", self.codes(result))
+        self.assertNotEqual(result["hookBuildId"], result["expectedHookBuildId"])
+
+    def test_missing_installer_backend_version_is_stale_metadata(self):
+        del self.filters["SynapseCTRL"]["InstalledByVersion"]
+        result = bootstrap.inspect_bootstrap()
+        self.assertFalse(result["hookHealthy"])
+        self.assertIn("hook_metadata_missing", self.codes(result))
 
     def test_missing_hook_has_repair_command_without_needing_elevation_to_inspect(self):
         self.filters = {}
         result = bootstrap.inspect_bootstrap()
         self.assertFalse(result["hookHealthy"])
         self.assertIn("hook_missing", self.codes(result))
-        self.assertIn("-NoPause", result["repair"][0])
+        self.assertTrue(any("hook repair" in step for step in result["repair"]))
 
     def test_missing_shim_and_disabled_filter_are_independently_diagnosed(self):
         self.shim.unlink()
