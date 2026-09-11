@@ -1,6 +1,6 @@
 [project]
 name = "SynapseCTRL"
-version = "0.3.0"
+version = "0.3.1"
 description = "A local Python SDK and CLI for Razer Synapse 4 software profiles"
 readme = "README.md"
 requires-python = ">=3.13"
