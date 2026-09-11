@@ -1,16 +1,12 @@
 """Control Synapse software profiles through a local, verified interface."""
 
-from importlib.metadata import PackageNotFoundError, version
-
+from .metadata import BACKEND_VERSION, HOOK_PROTOCOL_VERSION, HOOK_VERSION
 from .client import SynapseClient
 from .errors import SynapseError
 from .models import Device, Profile, Status, SwitchResult
 from .service import SynapseService
 
-try:
-    __version__ = version("synapsectrl")
-except PackageNotFoundError:  # Direct source-tree import without an installed project.
-    __version__ = "0+unknown"
+__version__ = BACKEND_VERSION
 
 __all__ = [
     "SynapseClient",
@@ -20,4 +16,6 @@ __all__ = [
     "Profile",
     "Status",
     "SwitchResult",
+    "HOOK_VERSION",
+    "HOOK_PROTOCOL_VERSION",
 ]
