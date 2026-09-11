@@ -11,6 +11,12 @@ from typing import Any
 
 from .bootstrap import inspect_bootstrap
 from .errors import SynapseError
+from .metadata import (
+    BACKEND_VERSION,
+    HOOK_PROTOCOL_VERSION,
+    HOOK_VERSION,
+    expected_hook_fingerprint,
+)
 
 
 def _powershell_executable() -> str:
@@ -38,14 +44,16 @@ def run_hook_installer(action: str) -> dict[str, Any]:
             "The Synapse launch hook can only be installed or removed on Windows.",
         )
 
-    resource = files("synapsectrl").joinpath("Install-SynapseInspectHook.ps1")
-    if not resource.is_file():
+    package = files("synapsectrl")
+    wrapper = package.joinpath("Install-SynapseHookMetadata.ps1")
+    installer = package.joinpath("Install-SynapseInspectHook.ps1")
+    if not wrapper.is_file() or not installer.is_file():
         raise SynapseError(
             "installer_missing",
             "The packaged Synapse hook installer is missing. Reinstall SynapseCTRL.",
         )
 
-    with as_file(resource) as script:
+    with as_file(wrapper) as script, as_file(installer) as native_installer:
         command = [
             _powershell_executable(),
             "-NoProfile",
@@ -53,6 +61,16 @@ def run_hook_installer(action: str) -> dict[str, Any]:
             "Bypass",
             "-File",
             str(script),
+            "-InstallerPath",
+            str(native_installer),
+            "-HookVersion",
+            str(HOOK_VERSION),
+            "-HookProtocolVersion",
+            str(HOOK_PROTOCOL_VERSION),
+            "-SynapseCtrlVersion",
+            BACKEND_VERSION,
+            "-ExpectedFingerprint",
+            expected_hook_fingerprint(),
             "-NoPause",
         ]
         if action == "uninstall":
